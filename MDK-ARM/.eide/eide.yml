@@ -60,12 +60,38 @@ virtualFolder:
             - path: ../Core/Src/system_stm32g4xx.c
           folders: []
     - name: motorControl
-      files:
-        - path: ../motorControl/userDef.h
+      files: []
       folders:
         - name: algorithm
+          files: []
+          folders:
+            - name: Inc
+              files:
+                - path: ../motorControl/algorithm/Inc/foc.h
+              folders: []
+            - name: Src
+              files:
+                - path: ../motorControl/algorithm/Src/foc.c
+              folders: []
+        - name: hardware
+          files: []
+          folders:
+            - name: Inc
+              files:
+                - path: ../motorControl/hardware/Inc/sample.h
+              folders: []
+            - name: Src
+              files:
+                - path: ../motorControl/hardware/Src/sample.c
+              folders: []
+        - name: Inc
           files:
-            - path: ../motorControl/algorithm/foc.c
+            - path: ../motorControl/Inc/userDef.h
+            - path: ../motorControl/Inc/sysControl.h
+          folders: []
+        - name: Src
+          files:
+            - path: ../motorControl/Src/sysControl.c
           folders: []
     - name: ::CMSIS
       files: []
@@ -82,15 +108,18 @@ targets:
         - STM32G431xx
       incList:
         - ../Core/Inc
-        - ../motorControl
+        - ../motorControl/Inc
         - ../Drivers/STM32G4xx_HAL_Driver/Inc
         - ../Drivers/STM32G4xx_HAL_Driver/Inc/Legacy
         - ../Drivers/CMSIS/Device/ST/STM32G4xx/Include
         - ../Drivers/CMSIS/Include
         - .cmsis/include
         - RTE/_FOC
+        - ../motorControl/algorithm/Inc
+        - ../motorControl/hardware/Inc
       libList: []
-    excludeList: []
+    excludeList:
+      - <virtual_root>/motorControl/algorithm/foc.c
     settings:
       debugger: cortex-debug
     toolchain: AC6
