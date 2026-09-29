@@ -62,6 +62,15 @@ virtualFolder:
     - name: motorControl
       files: []
       folders:
+        - name: Inc
+          files:
+            - path: ../motorControl/Inc/sysControl.h
+            - path: ../motorControl/Inc/userDef.h
+          folders: []
+        - name: Src
+          files:
+            - path: ../motorControl/Src/sysControl.c
+          folders: []
         - name: algorithm
           files: []
           folders:
@@ -84,15 +93,6 @@ virtualFolder:
               files:
                 - path: ../motorControl/hardware/Src/sample.c
               folders: []
-        - name: Inc
-          files:
-            - path: ../motorControl/Inc/userDef.h
-            - path: ../motorControl/Inc/sysControl.h
-          folders: []
-        - name: Src
-          files:
-            - path: ../motorControl/Src/sysControl.c
-          folders: []
     - name: ::CMSIS
       files: []
       folders: []
@@ -108,18 +108,18 @@ targets:
         - STM32G431xx
       incList:
         - ../Core/Inc
-        - ../motorControl/Inc
+        - ../motorControl
         - ../Drivers/STM32G4xx_HAL_Driver/Inc
         - ../Drivers/STM32G4xx_HAL_Driver/Inc/Legacy
         - ../Drivers/CMSIS/Device/ST/STM32G4xx/Include
         - ../Drivers/CMSIS/Include
         - .cmsis/include
         - RTE/_FOC
+        - ../motorControl/Inc
         - ../motorControl/algorithm/Inc
         - ../motorControl/hardware/Inc
       libList: []
-    excludeList:
-      - <virtual_root>/motorControl/algorithm/foc.c
+    excludeList: []
     settings:
       debugger: cortex-debug
     toolchain: AC6
@@ -128,29 +128,7 @@ targets:
         archExtensions: ""
         cpuType: Cortex-M4
         floatingPointHardware: single
-        options:
-          version: 4
-          afterBuildTasks: []
-          asm-compiler:
-            defines: []
-          beforeBuildTasks: []
-          c/cpp-compiler:
-            CXX_FLAGS: --diag_suppress=1 --diag_suppress=1295
-            C_FLAGS: --diag_suppress=1 --diag_suppress=1295
-            c99-mode: true
-            one-elf-section-per-function: true
-            optimization: level-3
-            warnings: all-warnings
-          global:
-            output-debug-info: enable
-            use-microLIB: false
-          linker:
-            $outputTaskExcludes:
-              - .bin
-            output-format: elf
-            ro-base: ""
-            rw-base: ""
-            xo-base: ""
+        options: ""
         scatterFilePath: ""
         storageLayout:
           RAM:
@@ -235,13 +213,17 @@ targets:
           afterBuildTasks: []
           asm-compiler:
             $use: asm-auto
+            defines: []
             misc-controls: ""
           beforeBuildTasks: []
           c/cpp-compiler:
             language-c: c99
             language-cpp: c++11
             link-time-optimization: false
+            one-elf-section-per-function: true
             optimization: level-0
+            short-enums#wchar: true
+            warnings: ac5-like-warnings
           global:
             output-debug-info: enable
             use-microLIB: false
@@ -250,9 +232,33 @@ targets:
               - .bin
             misc-controls: --diag_suppress=L6329
             output-format: elf
-        scatterFilePath: <YOUR_SCATTER_FILE>.sct
+            ro-base: ""
+            rw-base: ""
+            xo-base: ""
+        scatterFilePath: ""
         storageLayout:
           RAM:
+            - id: 1
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 2
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 3
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
             - id: 1
               isChecked: true
               mem:
@@ -260,13 +266,48 @@ targets:
                 startAddr: "0x20000000"
               noInit: false
               tag: IRAM
+            - id: 2
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: IRAM
           ROM:
+            - id: 1
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 2
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 3
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
             - id: 1
               isChecked: true
               isStartup: true
               mem:
                 size: "0x20000"
-                startAddr: "0x08000000"
+                startAddr: "0x8000000"
+              tag: IROM
+            - id: 2
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
               tag: IROM
         useCustomScatterFile: false
     uploadConfigMap:
@@ -280,7 +321,7 @@ targets:
         proType: 1
         speed: 8000
       STLink:
-        address: "0x08000000"
+        address: "0x8000000"
         bin: ""
         elFile: None
         optionBytes: .eide/foc.st.option.bytes.ini
