@@ -16,17 +16,7 @@
 #define SQRT3_DIV2      0.86602540378f
 
 typedef struct FOC FOC_t;
-
-typedef struct
-{
-    float Kp;
-    float Ki;
-    float Kd;
-    float integral;
-    float prev_error;
-    float output_limit;
-    float output;
-}PID_t;
+typedef struct PID PID_t;
 
 typedef struct
 {
@@ -37,6 +27,17 @@ typedef struct
     void (*antiPark)(FOC_t *p);
     void (*svpwm)(FOC_t *p);
 }FOC_OPS_t;
+
+struct PID
+{
+    float Kp;
+    float Ki;
+    float Kd;
+    float integral;
+    float prev_error;
+    float output_limit;
+    float output;
+};
 
 struct FOC
 {

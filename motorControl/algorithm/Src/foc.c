@@ -111,7 +111,7 @@ static void SVPWM(FOC_t *p)
 /**********************************************************函数注册接口**********************************************************/
 /*******************************************************************************************************************************/
 const FOC_OPS_t foc_ops = {
-    .name = "foc",
+    .name = "foc_ops",
     .clarke = Clarke,
     .park = Park,
     .pid = Pid,
@@ -122,10 +122,10 @@ const FOC_OPS_t foc_ops = {
 int foc_register(FOC_t *p)
 {
     if (p == NULL)
-        return -1;
-    /* 没指定算法表就用默认表 */
+        return REGISTER_ERROR;
+
     p->ops = &foc_ops;
     p->Ts = CONTROLER_TIME;
 
-    return 0;
+    return REGISTER_SUCCESS;
 }

@@ -62,6 +62,7 @@ static void MotorTemp(SAMPLE_t *p)
     p->motor_temp = 1.0f / (1.0f / NTC_T25_K + logf(r_ntc / VOLTAGE_DIVID_RESISTOR) / NTC_B_VALUE) - K_TEMPERATURE;
 }
 const SAMPLE_OPS_t sample_ops = {
+    .name = "sample_ops",
     .MotorCurrent = MotorCurrent,
     .MotorVbus = MotorVbus,
     .Washer = Washer,
@@ -71,9 +72,9 @@ const SAMPLE_OPS_t sample_ops = {
 int sample_register(SAMPLE_t *p)
 {
     if (p == NULL)
-        return -1;
+        return REGISTER_ERROR;
 
     p->ops = &sample_ops;
 
-    return 0;
+    return REGISTER_SUCCESS;
 }

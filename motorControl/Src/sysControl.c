@@ -12,6 +12,12 @@ Motor_t motor = {
     .foc = {
         
     },
+    .smo = {
+
+    },
+    .pll = {
+        
+    },
 };
 
 void motorInit()

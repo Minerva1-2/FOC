@@ -77,10 +77,14 @@ virtualFolder:
             - name: Inc
               files:
                 - path: ../motorControl/algorithm/Inc/foc.h
+                - path: ../motorControl/algorithm/Inc/observer.h
+                - path: ../motorControl/algorithm/Inc/TAccDac.h
               folders: []
             - name: Src
               files:
                 - path: ../motorControl/algorithm/Src/foc.c
+                - path: ../motorControl/algorithm/Src/observer.c
+                - path: ../motorControl/algorithm/Src/TAccDac.c
               folders: []
         - name: hardware
           files: []
@@ -88,10 +92,12 @@ virtualFolder:
             - name: Inc
               files:
                 - path: ../motorControl/hardware/Inc/sample.h
+                - path: ../motorControl/hardware/Inc/driver.h
               folders: []
             - name: Src
               files:
                 - path: ../motorControl/hardware/Src/sample.c
+                - path: ../motorControl/hardware/Src/driver.c
               folders: []
     - name: ::CMSIS
       files: []
