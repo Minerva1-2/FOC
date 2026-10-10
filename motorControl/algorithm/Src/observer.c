@@ -1,3 +1,11 @@
+/*
+ * @Author: Minerva1-2 18993035310@163.com
+ * @Date: 2026-10-10 17:18:17
+ * @LastEditors: Minerva1-2 18993035310@163.com
+ * @LastEditTime: 2026-10-10 21:43:01
+ * @FilePath: \MDK-ARMd:\keil\project\FOC\motorControl\algorithm\Src\observer.c
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
 #include "observer.h"
 
 void SMO(SMO_t *p)
@@ -8,22 +16,22 @@ void SMO(SMO_t *p)
     p->i_beta_hat += p->Ts * (-p->Rs / p->Ld * p->i_beta_hat + (p->U_beta - p->e_beta_hat_plf) / p->Ld);
     // 2.滑膜切换函数(使用饱和函数，减小抖振)
     // 边界层设定为1.0f，可以根据电流范围误差调整
-    if ((p->i_alpha_hat - p->I_alpha) > 1.0f)
+    if ((p->i_alpha_hat - p->I_alpha) > p->phi)
         p->e_alpha_hat = p->gain;
-    else if ((p->i_alpha_hat - p->I_alpha) < -1.0f)
+    else if ((p->i_alpha_hat - p->I_alpha) < -p->phi)
         p->e_alpha_hat = -p->gain;
     else
         p->e_alpha_hat = (p->i_alpha_hat - p->I_alpha) * p->gain;
 
-    if ((p->i_beta_hat - p->I_beta) > 1.0f)
+    if ((p->i_beta_hat - p->I_beta) > p->phi)
         p->e_beta_hat = p->gain;
-    else if ((p->i_beta_hat - p->I_beta) < -1.0f)
+    else if ((p->i_beta_hat - p->I_beta) < -p->phi)
         p->e_beta_hat = -p->gain;
     else
         p->e_beta_hat = (p->i_beta_hat - p->I_beta) * p->gain;
     // 3.反电动势低通滤波(去除高频噪声)，e_hat_PLF_factor为滤波系数
-    p->e_alpha_hat_plf = p->e_hat_PLF_factor * p->e_alpha_hat + p->e_alpha_hat_plf * (1 - p->e_hat_PLF_factor);
-    p->e_beta_hat_plf = p->e_hat_PLF_factor * p->e_beta_hat + p->e_beta_hat_plf * (1 - p->e_hat_PLF_factor);
+    p->e_alpha_hat_plf = p->e_hat_PLF_factor * p->e_alpha_hat + p->e_alpha_hat_plf * (1.0f - p->e_hat_PLF_factor);
+    p->e_beta_hat_plf = p->e_hat_PLF_factor * p->e_beta_hat + p->e_beta_hat_plf * (1.0f - p->e_hat_PLF_factor);
 }
 void PLL(PLL_t *p)
 {
