@@ -2,7 +2,7 @@
  * @Author: Minerva1-2 18993035310@163.com
  * @Date: 2026-10-10 17:18:17
  * @LastEditors: Minerva1-2 18993035310@163.com
- * @LastEditTime: 2026-10-10 21:43:01
+ * @LastEditTime: 2026-10-12 22:11:19
  * @FilePath: \MDK-ARMd:\keil\project\FOC\motorControl\algorithm\Src\observer.c
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -53,16 +53,19 @@ void PLL(PLL_t *p)
 const SMO_OPS_t smo_ops = {
     .name = "smo_ops",
     .SMO = SMO,
+};
+const PLL_OPS_t pll_ops = {
+    .name = "pll_ops",
     .PLL = PLL,
 };
 
-int smo_register(SMO_t *p)
+int smo_register(SMO_t *p, PLL_t *q)
 {
-    if (p == NULL)
+    if (p == NULL || q == NULL)
         return REGISTER_ERROR;
 
-    p->smo_ops = &smo_ops;
-    p->Ts = CONTROLER_TIME;
+    p->ops = &smo_ops;
+    q->ops = &pll_ops;
 
     return REGISTER_SUCCESS;
 }

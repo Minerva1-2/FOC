@@ -2,7 +2,7 @@
  * @Author: Minerva1-2 18993035310@163.com
  * @Date: 2026-10-10 17:18:17
  * @LastEditors: Minerva1-2 18993035310@163.com
- * @LastEditTime: 2026-10-10 18:45:07
+ * @LastEditTime: 2026-10-12 21:20:50
  * @FilePath: \MDK-ARMd:\keil\project\FOC\motorControl\algorithm\Src\TAccDac.c
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -42,12 +42,21 @@ void TAccDac(TAccDac_t *p)
 }
 void AngleGenerator(Angle_t *p)
 {
-
+    // 位置 = 位置 + 速度 * 时间,乘以2Π转换为弧度
+    p->ElectricalAngleThetaOut += (p->ElectricalAngleSpeedSet * p->Ts * 0.01666f * TWO_PI);
+    // 弧度限制
+    if(p->ElectricalAngleThetaOut > TWO_PI)
+        p->ElectricalAngleThetaOut -= TWO_PI;
+    else if (p->ElectricalAngleThetaOut < 0.0f)
+        p->ElectricalAngleThetaOut += TWO_PI;
 }
-
 const TAccDac_OPS_t TAccDac_ops = {
     .name = "TAccDac_ops",
     .TAccDac = TAccDac,
+};
+
+const Angle_OPS_t angle_ops = {
+    .name = "angle_ops",
     .AngleGenerator = AngleGenerator,
 };
 
@@ -56,9 +65,8 @@ int TAccDac_register(TAccDac_t *p, Angle_t *q)
     if (p == NULL || q == NULL)
         return REGISTER_ERROR;
 
-    p->TAccDac_ops = &TAccDac_ops;
-    p->Ts = MOTOR_CONTROLER;
-    q->Ts = MOTOR_CONTROLER;
+    p->ops = &TAccDac_ops;
+    q->ops = &angle_ops;
 
     return REGISTER_SUCCESS;
 }

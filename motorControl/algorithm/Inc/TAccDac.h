@@ -20,8 +20,12 @@ typedef struct
 {
     const char *name;
     void (*TAccDac)(TAccDac_t *p);
-    void (*AngleGenerator)(Angle_t *p);
 }TAccDac_OPS_t;
+typedef struct
+{
+    const char *name;
+    void (*AngleGenerator)(Angle_t *p);
+}Angle_OPS_t;
 
 typedef enum
 {
@@ -30,10 +34,9 @@ typedef enum
     MOTOR_UNIFORM,
 }MOTOR_STATE;
 
-
 struct TAccDac
 {
-    const TAccDac_OPS_t *TAccDac_ops;
+    const TAccDac_OPS_t *ops;
 
     float Ts;
     float TargetSpeed;              // 目标速度，由外部指定
@@ -51,7 +54,13 @@ struct TAccDac
 
 struct Angle
 {
+    const Angle_OPS_t *ops;
+
     float Ts;
+    float ElectricalAngleSpeedSet;  // 电角度速度
+    float ElectricalAngleThetaOut;  // 电角度位置
 };
+
+int TAccDac_register(TAccDac_t *p, Angle_t *q);
 
 #endif

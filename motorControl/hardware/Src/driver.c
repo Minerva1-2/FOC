@@ -40,7 +40,7 @@ int driver_register(DRIVER_t *p)
     if (p == NULL)
         return REGISTER_ERROR;
 
-    p->driver_ops = &driver_ops;
+    p->ops = &driver_ops;
 
     return REGISTER_SUCCESS;
 }

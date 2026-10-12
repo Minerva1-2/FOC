@@ -5,6 +5,7 @@ foc/syscontrol.o: ..\motorControl\Src\sysControl.c \
   D:\keil\core\ARM\ARMCLANG\Bin\..\include\math.h \
   ..\motorControl\Inc\userDef.h ..\motorControl\algorithm\Inc\observer.h \
   D:\keil\core\ARM\ARMCLANG\Bin\..\include\string.h \
+  ..\motorControl\algorithm\Inc\TAccDac.h \
   ..\motorControl\hardware\Inc\driver.h ..\Core\Inc\gpio.h \
   ..\Core\Inc\main.h ..\Drivers\STM32G4xx_HAL_Driver\Inc\stm32g4xx_hal.h \
   ..\Core\Inc\stm32g4xx_hal_conf.h \

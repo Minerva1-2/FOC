@@ -2,25 +2,106 @@
  * @Author: Minerva1-2 18993035310@163.com
  * @Date: 2026-09-26 17:08:38
  * @LastEditors: Minerva1-2 18993035310@163.com
- * @LastEditTime: 2026-09-26 23:11:00
+ * @LastEditTime: 2026-10-12 21:16:54
  * @FilePath: \MDK-ARMd:\cubemx\project\keil\FOC\motorControl\Src\motor.c
- * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ * @Description: 系统控制层：统一初始化所有模块结构体的数据，并编排一个 FOC 控制周期
  */
 #include "sysControl.h"
 
+/*************************************************************************************************************************/
+/*********************************************************电机实例********************************************************/
+/*************************************************************************************************************************/
+/* 说明：所有模块的数据（算法参数、Ts、硬件引脚）都在此处一次性初始化；
+ *       底层模块只提供算法与 ops 函数表，不持有任何配置数据。
+ *       ops 指针在 motorInit() 中通过各 *_register() 绑定。 */
 Motor_t motor = {
     .foc = {
-        
+        .Ts            = CONTROLER_TIME,
+        .V_bus         = 0.0f,
+        .theta         = 0.0f,
+        .Id_ref        = 0.0f,
+        .Iq_ref        = 0.0f,
+        .speed_ref     = 0.0f,
+        .speed_fb      = 0.0f,
+        .speed_div     = FOC_SPEED_DIV,
+        .speed_div_cnt = 0u,
+        .pid_id    = {
+            .Kp = PID_ID_KP, .Ki = PID_ID_KI, .Kd = PID_ID_KD,
+            .output_limit = PID_ID_LIMIT,
+        },
+        .pid_iq    = {
+            .Kp = PID_IQ_KP, .Ki = PID_IQ_KI, .Kd = PID_IQ_KD,
+            .output_limit = PID_IQ_LIMIT,
+        },
+        .pid_speed = {
+            .Kp = PID_SPEED_KP, .Ki = PID_SPEED_KI, .Kd = PID_SPEED_KD,
+            .output_limit = PID_SPEED_LIMIT,
+        },
     },
     .smo = {
-
+        .Ts            = CONTROLER_TIME,
+        .Rs            = MOTOR_RS,
+        .Ld            = MOTOR_LD,
+        .gain          = SMO_GAIN,
+        .phi           = SMO_PHI,
+        .fc            = SMO_FC,
+        .wc            = TWO_PI * SMO_FC,
+        .e_hat_PLF_factor = SMO_E_PLF_FACTOR,
     },
     .pll = {
-        
+        .Dir           = PLL_DIR,
+        .Ts            = CONTROLER_TIME,
+        .Kp            = PLL_KP,
+        .Ki            = PLL_KI,
+        .omega_hat_PLF_factor = PLL_PLF_FACTOR,
+    },
+    .tra = {
+        .Ts            = CONTROLER_TIME,
+        .TargetSpeed   = TRA_TARGET_SPEED,
+        .accSpeed      = TRA_ACC_SPEED,
+        .motor_state   = MOTOR_UNIFORM,
+    },
+    .angle = {
+        .Ts            = CONTROLER_TIME,
+    },
+    .driver = {
+        .motor_a   = MOTOR_A_PORT, .motor_pin_a = MOTOR_A_PIN,
+        .motor_b   = MOTOR_B_PORT, .motor_pin_b = MOTOR_B_PIN,
+        .motor_c   = MOTOR_C_PORT, .motor_pin_c = MOTOR_C_PIN,
+        .motor_d   = MOTOR_D_PORT, .motor_pin_d = MOTOR_D_PIN,
+        .led_a     = LED_A_PORT,   .led_pin_a   = LED_A_PIN,
+        .led_b     = LED_B_PORT,   .led_pin_b   = LED_B_PIN,
+        .led_c     = LED_C_PORT,   .led_pin_c   = LED_C_PIN,
+    },
+    .sample = {
+        .cali_flag = false,
     },
 };
 
-void motorInit()
+/*************************************************************************************************************************/
+/********************************************************初始化接口*******************************************************/
+/*************************************************************************************************************************/
+int motorInit(void)
 {
-    
+    /* 1. 绑定各模块的算法函数表（配置数据已在上面的初始化器中静态就绪） */
+    if (foc_register(&motor.foc)                   != REGISTER_SUCCESS) return REGISTER_ERROR;
+    if (smo_register(&motor.smo, &motor.pll)       != REGISTER_SUCCESS) return REGISTER_ERROR;
+    if (TAccDac_register(&motor.tra, &motor.angle) != REGISTER_SUCCESS) return REGISTER_ERROR;
+    if (driver_register(&motor.driver)             != REGISTER_SUCCESS) return REGISTER_ERROR;
+    if (sample_register(&motor.sample)             != REGISTER_SUCCESS) return REGISTER_ERROR;
+
+    /* 2. 上电初始化：先关断驱动，等待采样零点校准完成后再使能 */
+    motor.driver.ops->motorDisable(&motor.driver);
+    motor.driver.ops->LedOn(&motor.driver);
+
+    /* TODO: 启动 PWM 输出、启动 ADC-DMA 采样（本层骨架不接管外设启动） */
+    return REGISTER_SUCCESS;
+}
+
+/*************************************************************************************************************************/
+/*******************************************************FOC 控制周期*******************************************************/
+/*************************************************************************************************************************/
+void motorFocISR(void)
+{
+
 }

@@ -18,7 +18,7 @@ typedef struct
 
 struct DRIVER
 {
-    const DRIVER_OPS_t *driver_ops;
+    const DRIVER_OPS_t *ops;
     // 电机驱动芯片引脚
     GPIO_TypeDef *motor_a;
     GPIO_TypeDef *motor_b;

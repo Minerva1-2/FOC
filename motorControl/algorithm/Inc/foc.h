@@ -61,12 +61,16 @@ struct FOC
     PID_t pid_iq;       // q轴电流环
     float Id_ref;       // d轴电流给定值
     float Iq_ref;       // q轴电流给定值
-    float speed_ref;
-    float speed_fb;
+    float speed_ref;    // 速度参考值
+    float speed_fb;     // 速度反馈值
     u16 speed_div_cnt;  // 速度环计数器
     u16 speed_div;      // 速度环分频比
     // 占空比
-    float duty_a, duty_b, duty_c;
+    u16 pwm_cycle;      // TIM1 ARR
+    u16 ccr_min;        // CCR 两端让出的裕量
+    u8  pwm_inverted;   // 1 = TIM_OCMODE_PWM2（占空比=(ARR-CCR)/ARR），0 = 模式1
+    float duty_a, duty_b, duty_c;   // 占空比
+    u16 ccr_a, ccr_b, ccr_c;        // 比较寄存器值
 };
 
 /* 实例注册接口：应用层初始化时调用一次 foc_register()，中断里用 foc_get() 取用 */
