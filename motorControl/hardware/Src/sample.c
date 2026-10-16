@@ -9,7 +9,7 @@
 #include "sample.h"
 #include <math.h>
 
-static void MotorCurrent(SAMPLE_t *p, ADC_HandleTypeDef *hadc)
+static void MotorCurrent(SAMPLE_t *p)
 {
     u16 raw_a, raw_c;
      // 获取注入通道adc原始数值
@@ -38,7 +38,7 @@ static void MotorCurrent(SAMPLE_t *p, ADC_HandleTypeDef *hadc)
     p->Ic = (float)(raw_c - p->offset_c) / SAMPLE_I_PER_LSB;
     p->Ib = -(p->Ia + p->Ic);
 }
-static void MotorVbus(SAMPLE_t *p, ADC_HandleTypeDef *hadc)
+static void MotorVbus(SAMPLE_t *p)
 {
     p->Vbus_adc = p->g_adc_buf[2];
     p->Vbus = (float)p->Vbus_adc / ADC_FULL_SCALE * ADC_VREF / VBUS_DIV_RATIO;

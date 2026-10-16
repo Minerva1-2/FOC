@@ -1,13 +1,24 @@
 /*
  * @Author: Minerva1-2 18993035310@163.com
+ * @Date: 2026-10-10 22:09:56
+ * @LastEditors: Minerva1-2 18993035310@163.com
+ * @LastEditTime: 2026-10-15 10:09:57
+ * @FilePath: \MDK-ARMd:\keil\project\FOC\motorControl\Src\sysControl.c
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
+/*
+ * @Author: Minerva1-2 18993035310@163.com
  * @Date: 2026-09-26 17:08:38
  * @LastEditors: Minerva1-2 18993035310@163.com
- * @LastEditTime: 2026-10-12 21:16:54
+ * @LastEditTime: 2026-10-15 09:55:30
  * @FilePath: \MDK-ARMd:\cubemx\project\keil\FOC\motorControl\Src\motor.c
  * @Description: 系统控制层：统一初始化所有模块结构体的数据，并编排一个 FOC 控制周期
  */
 #include "sysControl.h"
-
+#include "dma.h"
+#include "adc.h"
+#include "tim.h"
+#include "stm32g4xx_it.h"
 /*************************************************************************************************************************/
 /*********************************************************电机实例********************************************************/
 /*************************************************************************************************************************/
@@ -72,12 +83,14 @@ Motor_t motor = {
         .led_a     = LED_A_PORT,   .led_pin_a   = LED_A_PIN,
         .led_b     = LED_B_PORT,   .led_pin_b   = LED_B_PIN,
         .led_c     = LED_C_PORT,   .led_pin_c   = LED_C_PIN,
+        .htim      = &htim1,
     },
     .sample = {
         .cali_flag = false,
     },
+    
+    .state = MOTOR_CALIB,
 };
-
 /*************************************************************************************************************************/
 /********************************************************初始化接口*******************************************************/
 /*************************************************************************************************************************/
@@ -93,15 +106,87 @@ int motorInit(void)
     /* 2. 上电初始化：先关断驱动，等待采样零点校准完成后再使能 */
     motor.driver.ops->motorDisable(&motor.driver);
     motor.driver.ops->LedOn(&motor.driver);
-
-    /* TODO: 启动 PWM 输出、启动 ADC-DMA 采样（本层骨架不接管外设启动） */
+    // 开启中断
+    HAL_ADC_Start_DMA(&hadc2, (uint32_t *)&motor.sample.g_adc_buf[2], 3);
+    HAL_ADCEx_InjectedStart_IT(&hadc2);
+    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_ALL);
+    /* TODO: 启动 PWM 输出、启动 ADC-DMA 采样（本层框架不接管外设启动） */
     return REGISTER_SUCCESS;
 }
-
 /*************************************************************************************************************************/
-/*******************************************************FOC 控制周期*******************************************************/
+/*******************************************************FOC 控制周期******************************************************/
 /*************************************************************************************************************************/
 void motorFocISR(void)
 {
-
+    if (motor.state == MOTOR_DEFAULT)
+    {
+        motor.driver.ops->motorDisable(&motor.driver);
+        return;
+    }
+    // 梯形加减速
+    motor.tra.TargetSpeed = motor.sample.washer_vlaue;
+    motor.tra.ops->TAccDac(&motor.tra);
+    // 电角度发生器
+    motor.angle.ElectricalAngleSpeedSet = motor.tra.speedOut;
+    motor.angle.ops->AngleGenerator(&motor.angle);
+    // 滑膜观测器
+    motor.smo.I_alpha = motor.foc.I_alpha;
+    motor.smo.I_beta = motor.foc.I_beta;
+    motor.smo.U_alpha = motor.foc.V_alpha;
+    motor.smo.U_beta = motor.foc.V_beta;
+    motor.smo.ops->SMO(&motor.smo);
+    // 锁相环
+    motor.pll.A_in = motor.smo.e_alpha_hat_plf;
+    motor.pll.B_in = motor.smo.e_beta_hat_plf;
+    motor.pll.Dir = motor.tra.speedOutDir;
+    motor.pll.ops->PLL(&motor.pll);
+    // foc控制
+    motor.foc.Ia = motor.sample.Ia;
+    motor.foc.Ib = motor.sample.Ib;
+    motor.foc.Ic = motor.sample.Ic;
+    motor.foc.V_bus = motor.sample.Vbus;
+    motor.foc.theta = motor.pll.theta_hat;
+    motor.foc.speed_ref = motor.tra.speedOut;
+    motor.foc.speed_fb = motor.pll.omega_hat_PLF / TWO_PI * 60.0f;  // 转换为电角速度
+    motor.foc.ops->clarke(&motor.foc);
+    motor.foc.ops->park(&motor.foc);
+    motor.foc.ops->pid(&motor.foc);
+    motor.foc.ops->antiPark(&motor.foc);
+    motor.foc.ops->svpwm(&motor.foc);
+    // pwm输出
+    motor.driver.ccr_a = motor.foc.ccr_a;
+    motor.driver.ccr_b = motor.foc.ccr_b;
+    motor.driver.ccr_c = motor.foc.ccr_c;
+    motor.driver.ops->SetPWM(&motor.driver);
+}
+/*************************************************************************************************************************/
+/*********************************************************中断函数********************************************************/
+/*************************************************************************************************************************/
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+{
+    if (hadc->Instance == ADC2)
+    {
+        motor.sample.ops->MotorVbus(&motor.sample);
+        motor.sample.ops->MotorTemp(&motor.sample);
+        motor.sample.ops->Washer(&motor.sample);
+    }
+}
+void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef *hadc)
+{
+    if (hadc->Instance == ADC2)
+    {
+        motor.sample.g_adc_buf[0] = HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_1);
+        motor.sample.g_adc_buf[1] = HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_2);
+        motor.sample.ops->MotorCurrent(&motor.sample);
+        // 零点校准成功
+        if (motor.sample.cali_flag)
+        {
+            if (motor.state == MOTOR_CALIB)
+            {
+                motor.driver.ops->motorEnable(&motor.driver);   // 使能PWM
+                motor.state = MOTOR_ALIGN;      // 进入开环强拖
+            }
+            motorFocISR();
+        }
+    }
 }

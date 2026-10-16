@@ -3,6 +3,7 @@
 
 #include "userDef.h"
 #include "gpio.h"
+#include "tim.h"
 
 typedef struct DRIVER DRIVER_t;
 
@@ -13,6 +14,7 @@ typedef struct
     void (*motorDisable)(DRIVER_t *p);
     void (*LedOn)(DRIVER_t *p);
     void (*LedOff)(DRIVER_t *p);
+    void (*SetPWM)(DRIVER_t *p);
     /* data */
 }DRIVER_OPS_t;
 
@@ -35,6 +37,10 @@ struct DRIVER
     u16 led_pin_a;
     u16 led_pin_b;
     u16 led_pin_c;
+    TIM_HandleTypeDef *htim;
+    u16 ccr_a;
+    u16 ccr_b;
+    u16 ccr_c;
 };
 
 int driver_register(DRIVER_t *p);

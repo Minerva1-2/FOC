@@ -35,8 +35,8 @@ typedef struct SAMPLE SAMPLE_t;
 typedef struct
 {
     const char *name;
-    void (*MotorCurrent)(SAMPLE_t *p, ADC_HandleTypeDef *hadc);
-    void (*MotorVbus)(SAMPLE_t *p, ADC_HandleTypeDef *hadc);
+    void (*MotorCurrent)(SAMPLE_t *p);
+    void (*MotorVbus)(SAMPLE_t *p);
     void (*Washer)(SAMPLE_t *p);
     void (*MotorTemp)(SAMPLE_t *p);
 }SAMPLE_OPS_t;

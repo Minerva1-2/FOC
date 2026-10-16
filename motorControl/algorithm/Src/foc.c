@@ -72,7 +72,7 @@ static void antiPark(FOC_t *p)
     float cos_theta = cosf(p->theta);
 
     p->V_alpha = p->Vd * cos_theta - p->Vq * sin_theta;
-    p->I_beta = p->Vd * sin_theta + p->Vq * cos_theta;
+    p->V_beta = p->Vd * sin_theta + p->Vq * cos_theta;
 }
 /* 归一化占空比(0~1) -> TIMx CCR 计数值（可直接写入比较寄存器）
  *   CCR = ccr_min + duty × (ARR - 2×ccr_min)  [+0.5 四舍五入]

@@ -37,4 +37,12 @@ foc/main.o: ..\Core\Src\main.c ..\Core\Inc\main.h \
   ..\Drivers\STM32G4xx_HAL_Driver\Inc\stm32g4xx_hal_uart_ex.h \
   ..\Core\Inc\adc.h ..\Core\Inc\main.h ..\Core\Inc\dma.h \
   ..\Core\Inc\tim.h ..\Core\Inc\usart.h ..\Core\Inc\gpio.h \
-  ..\motorControl\Inc\userDef.h
+  ..\motorControl\Inc\userDef.h ..\motorControl\Inc\sysControl.h \
+  ..\motorControl\Inc\userDef.h ..\motorControl\algorithm\Inc\foc.h \
+  D:\keil\core\ARM\ARMCLANG\Bin\..\include\math.h \
+  ..\motorControl\algorithm\Inc\observer.h \
+  D:\keil\core\ARM\ARMCLANG\Bin\..\include\string.h \
+  ..\motorControl\algorithm\Inc\TAccDac.h \
+  ..\motorControl\hardware\Inc\driver.h \
+  ..\motorControl\hardware\Inc\sample.h \
+  D:\keil\core\ARM\ARMCLANG\Bin\..\include\stdbool.h
