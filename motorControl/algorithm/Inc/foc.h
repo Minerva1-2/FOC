@@ -35,8 +35,10 @@ struct PID
     float Kd;
     float integral;
     float prev_error;
-    float output_limit;
+    float target;
+    float feedback;
     float output;
+    float output_limit;
 };
 
 struct FOC
@@ -61,6 +63,10 @@ struct FOC
     PID_t pid_iq;       // q轴电流环
     float Id_ref;       // d轴电流给定值
     float Iq_ref;       // q轴电流给定值
+    float Id_LPF;       // d轴电流滤波值
+    float Iq_LPF;       // q轴电流滤波值
+    float IdLPFFactor;  // d轴电流滤波系数
+    float IqLPFFactor;  // q轴电流滤波系数
     float speed_ref;    // 速度参考值
     float speed_fb;     // 速度反馈值
     u16 speed_div_cnt;  // 速度环计数器

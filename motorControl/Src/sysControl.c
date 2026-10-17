@@ -36,6 +36,8 @@ Motor_t motor = {
         .speed_fb      = 0.0f,
         .speed_div     = FOC_SPEED_DIV,
         .speed_div_cnt = 0u,
+        .IdLPFFactor   = 0.1f,
+        .IqLPFFactor   = 0.1f,
         .pid_id    = {
             .Kp = PID_ID_KP, .Ki = PID_ID_KI, .Kd = PID_ID_KD,
             .output_limit = PID_ID_LIMIT,
@@ -94,7 +96,7 @@ Motor_t motor = {
 /*************************************************************************************************************************/
 /********************************************************初始化接口*******************************************************/
 /*************************************************************************************************************************/
-int motorInit(void)
+static int motorInit(void)
 {
     /* 1. 绑定各模块的算法函数表（配置数据已在上面的初始化器中静态就绪） */
     if (foc_register(&motor.foc)                   != REGISTER_SUCCESS) return REGISTER_ERROR;
@@ -116,7 +118,66 @@ int motorInit(void)
 /*************************************************************************************************************************/
 /*******************************************************FOC 控制周期******************************************************/
 /*************************************************************************************************************************/
-void motorFocISR(void)
+/**
+ * 电流开环强拖
+ */
+static void Strong_Drag_Current_Open_Loop(void)
+{
+    if (motor.state == MOTOR_DEFAULT)
+    {
+        motor.driver.ops->motorDisable(&motor.driver);
+        return;
+    }
+    // 获取目标速度
+    motor.tra.TargetSpeed = motor.sample.washer_vlaue;
+    motor.tra.ops->TAccDac(&motor.tra);
+    // 将梯形速度曲线的输出即电角速度作为电角度发生器的输入，生成电角度
+    motor.angle.ElectricalAngleSpeedSet = motor.tra.speedOut;
+    motor.angle.ops->AngleGenerator(&motor.angle);
+    // 将电角度发生器的输出值即电角度作为FOC的角度值进行反Park变换，更新母线电压后进行零序注入
+    motor.foc.theta = motor.angle.ElectricalAngleThetaOut;
+    motor.foc.ops->antiPark(&motor.foc);
+    motor.foc.V_bus = motor.sample.Vbus;
+    motor.foc.ops->svpwm(&motor.foc);
+}
+/**
+ * 电流闭环强拖
+ */
+static void Strong_Drag_Current_Close_Loop(void)
+{
+    if (motor.state == MOTOR_DEFAULT)
+    {
+        motor.driver.ops->motorDisable(&motor.driver);
+        return;
+    }
+    // 强拖需要建立一定的磁场，给定一个固定电流参考值1A
+    motor.foc.Id_ref = 1.0f;
+    // 获取目标速度
+    motor.tra.TargetSpeed = motor.sample.washer_vlaue;
+    motor.tra.ops->TAccDac(&motor.tra);
+    // 将梯形速度曲线的输出即电角速度作为电角度发生器的输入，生成电角度
+    motor.angle.ElectricalAngleSpeedSet = motor.tra.speedOut;
+    motor.angle.ops->AngleGenerator(&motor.angle);
+    // 将电角度发生器的输出值即电角度作为FOC的角度值进行clarke以及Park变换
+    motor.foc.theta = motor.angle.ElectricalAngleThetaOut;
+    motor.foc.Ia = motor.sample.Ia;
+    motor.foc.Ic = motor.sample.Ic;
+    motor.foc.ops->clarke(&motor.foc);
+    motor.foc.ops->park(&motor.foc);
+    // 电流一阶低通滤波
+    motor.foc.Id_LPF = motor.foc.Id * motor.foc.IdLPFFactor + motor.foc.Id_LPF * (1 - motor.foc.IdLPFFactor);
+    motor.foc.Iq_LPF = motor.foc.Iq * motor.foc.IqLPFFactor + motor.foc.Iq_LPF * (1 - motor.foc.IqLPFFactor);
+    // 滤波后的电流作为电流环的反馈值，计算出Vd, Vq
+    motor.foc.pid_id.feedback = motor.foc.Id_LPF;
+    motor.foc.pid_iq.feedback = motor.foc.Iq_LPF;
+    motor.foc.ops->pid(&motor.foc);
+    motor.foc.ops->pid(&motor.foc);
+    // 反park变换以及svpwm调制
+    motor.foc.ops->antiPark(&motor.foc);
+    motor.foc.V_bus = motor.sample.Vbus;
+    motor.foc.ops->svpwm(&motor.foc);
+}
+static void Strong_Drag_Smo_Speed_Current_Loop(void)
 {
     if (motor.state == MOTOR_DEFAULT)
     {
@@ -158,6 +219,10 @@ void motorFocISR(void)
     motor.driver.ccr_b = motor.foc.ccr_b;
     motor.driver.ccr_c = motor.foc.ccr_c;
     motor.driver.ops->SetPWM(&motor.driver);
+}
+static void motorFocISR(void)
+{
+
 }
 /*************************************************************************************************************************/
 /*********************************************************中断函数********************************************************/

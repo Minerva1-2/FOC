@@ -24,9 +24,9 @@ static void Park(FOC_t *p)
     p->Iq = -p->I_alpha * sin_theta + p->I_beta * cos_theta;
 }
 
-static float Pid_calc(PID_t *p, float target, float feedback, float Ts)
+static float Pid_calc(PID_t *p, float Ts)
 {
-    float error = target - feedback;
+    float error = p->target - p->feedback;
     // 比例项
     float p_term = p->Kp * error;
     // 积分项
@@ -52,8 +52,8 @@ static float Pid_calc(PID_t *p, float target, float feedback, float Ts)
 static void Pid(FOC_t *p)
 {
     // 电流环, 20KHz
-    p->Vd = Pid_calc(&p->pid_id, p->Id_ref, p->Id, p->Ts);
-    p->Vq = Pid_calc(&p->pid_iq, p->Iq_ref, p->Iq, p->Ts);
+    p->Vd = Pid_calc(&p->pid_id, p->Ts);
+    p->Vq = Pid_calc(&p->pid_iq, p->Ts);
     // 速度环, 电流环的speed_div时间执行一次
     if (p->speed_div > 0)
     {
@@ -61,7 +61,7 @@ static void Pid(FOC_t *p)
         {
             p->speed_div_cnt = 0;
             float speed_Ts = (float)p->speed_div * p->Ts;
-            p->Iq_ref = Pid_calc(&p->pid_speed, p->speed_ref, p->speed_fb, speed_Ts);
+            p->Iq_ref = Pid_calc(&p->pid_speed, speed_Ts);
         }
     }
 }

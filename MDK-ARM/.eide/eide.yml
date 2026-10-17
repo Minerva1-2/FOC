@@ -60,45 +60,20 @@ virtualFolder:
             - path: ../Core/Src/system_stm32g4xx.c
           folders: []
     - name: motorControl
-      files: []
+      files:
+        - path: ../motorControl/Src/sysControl.c
       folders:
-        - name: Inc
-          files:
-            - path: ../motorControl/Inc/sysControl.h
-            - path: ../motorControl/Inc/userDef.h
-          folders: []
-        - name: Src
-          files:
-            - path: ../motorControl/Src/sysControl.c
-          folders: []
         - name: algorithm
-          files: []
-          folders:
-            - name: Inc
-              files:
-                - path: ../motorControl/algorithm/Inc/foc.h
-                - path: ../motorControl/algorithm/Inc/observer.h
-                - path: ../motorControl/algorithm/Inc/TAccDac.h
-              folders: []
-            - name: Src
-              files:
-                - path: ../motorControl/algorithm/Src/foc.c
-                - path: ../motorControl/algorithm/Src/observer.c
-                - path: ../motorControl/algorithm/Src/TAccDac.c
-              folders: []
+          files:
+            - path: ../motorControl/algorithm/Src/foc.c
+            - path: ../motorControl/algorithm/Src/observer.c
+            - path: ../motorControl/algorithm/Src/TAccDac.c
+          folders: []
         - name: hardware
-          files: []
-          folders:
-            - name: Inc
-              files:
-                - path: ../motorControl/hardware/Inc/sample.h
-                - path: ../motorControl/hardware/Inc/driver.h
-              folders: []
-            - name: Src
-              files:
-                - path: ../motorControl/hardware/Src/sample.c
-                - path: ../motorControl/hardware/Src/driver.c
-              folders: []
+          files:
+            - path: ../motorControl/hardware/Src/driver.c
+            - path: ../motorControl/hardware/Src/sample.c
+          folders: []
     - name: ::CMSIS
       files: []
       folders: []
@@ -119,11 +94,11 @@ targets:
         - ../Drivers/STM32G4xx_HAL_Driver/Inc/Legacy
         - ../Drivers/CMSIS/Device/ST/STM32G4xx/Include
         - ../Drivers/CMSIS/Include
-        - .cmsis/include
-        - RTE/_FOC
         - ../motorControl/Inc
         - ../motorControl/algorithm/Inc
         - ../motorControl/hardware/Inc
+        - .cmsis/include
+        - RTE/_FOC
       libList: []
     excludeList: []
     settings:
