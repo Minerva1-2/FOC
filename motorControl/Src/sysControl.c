@@ -110,7 +110,56 @@ static int motorInit(void)
 /*******************************************************FOC 控制周期******************************************************/
 /*************************************************************************************************************************/
 #if (MOTOR_CONTROLER == FOC_SENSORLESS)
-//  无感算法
+    /**
+     * 电流开环强拖
+     */
+    static void Strong_Drag_Current_Open_Loop(void)
+    {
+        // 获取目标速度
+        motor.tra.TargetSpeed = motor.sample.washer_vlaue;
+        motor.tra.ops->TAccDac(&motor.tra);
+        // 将梯形速度曲线的输出即电角速度作为电角度发生器的输入，生成电角度
+        motor.angle.ElectricalAngleSpeedSet = motor.tra.speedOut;
+        motor.angle.ops->AngleGenerator(&motor.angle);
+        // 将电角度发生器的输出值即电角度作为FOC的角度值进行反Park变换，更新母线电压后进行零序注入
+        motor.foc.theta = motor.angle.ElectricalAngleThetaOut;
+        motor.foc.ops->antiPark(&motor.foc);
+        motor.foc.V_bus = motor.sample.Vbus;
+        motor.foc.ops->svpwm(&motor.foc);
+    }
+    /**
+     * 电流闭环强拖
+     */
+    static void Strong_Drag_Current_Close_Loop(void)
+    {
+        // 强拖需要建立一定的磁场，给定一个固定电流参考值1A
+        motor.foc.Id_ref = 1.0f;
+        // 获取目标速度
+        motor.tra.TargetSpeed = motor.sample.washer_vlaue;
+        motor.tra.ops->TAccDac(&motor.tra);
+        // 将梯形速度曲线的输出即电角速度作为电角度发生器的输入，生成电角度
+        motor.angle.ElectricalAngleSpeedSet = motor.tra.speedOut;
+        motor.angle.ops->AngleGenerator(&motor.angle);
+        // 将电角度发生器的输出值即电角度作为FOC的角度值进行clarke以及Park变换
+        motor.foc.theta = motor.angle.ElectricalAngleThetaOut;
+        motor.foc.Ia = motor.sample.Ia;
+        motor.foc.Ic = motor.sample.Ic;
+        motor.foc.ops->clarke(&motor.foc);
+        motor.foc.ops->park(&motor.foc);
+        // 电流一阶低通滤波
+        motor.foc.Id_LPF = motor.foc.Id * motor.foc.IdLPFFactor + motor.foc.Id_LPF * (1 - motor.foc.IdLPFFactor);
+        motor.foc.Iq_LPF = motor.foc.Iq * motor.foc.IqLPFFactor + motor.foc.Iq_LPF * (1 - motor.foc.IqLPFFactor);
+        // 滤波后的电流作为电流环的反馈值，计算出Vd, Vq
+        motor.foc.pid_id.feedback = motor.foc.Id_LPF;
+        motor.foc.pid_iq.feedback = motor.foc.Iq_LPF;
+        motor.foc.ops->pid(&motor.foc);
+        motor.foc.ops->pid(&motor.foc);
+        // 反park变换以及svpwm调制
+        motor.foc.ops->antiPark(&motor.foc);
+        motor.foc.V_bus = motor.sample.Vbus;
+        motor.foc.ops->svpwm(&motor.foc);
+    }
+    //  无感算法
     static void Strong_Drag_To_Observer_Cal(StrongDragToObs_t *p)
     {
         // 1.计算角度误差
@@ -199,174 +248,125 @@ static int motorInit(void)
         if (p->CheckCnt > 40)   p->CheckCnt = 41;
         else if (p->CheckCnt < 0)   p->CheckCnt = 0;
     }
-    /**
-     * 电流开环强拖
-     */
-    static void Strong_Drag_Current_Open_Loop(void)
-    {
-        // 获取目标速度
-        motor.tra.TargetSpeed = motor.sample.washer_vlaue;
-        motor.tra.ops->TAccDac(&motor.tra);
-        // 将梯形速度曲线的输出即电角速度作为电角度发生器的输入，生成电角度
-        motor.angle.ElectricalAngleSpeedSet = motor.tra.speedOut;
-        motor.angle.ops->AngleGenerator(&motor.angle);
-        // 将电角度发生器的输出值即电角度作为FOC的角度值进行反Park变换，更新母线电压后进行零序注入
-        motor.foc.theta = motor.angle.ElectricalAngleThetaOut;
-        motor.foc.ops->antiPark(&motor.foc);
-        motor.foc.V_bus = motor.sample.Vbus;
-        motor.foc.ops->svpwm(&motor.foc);
-    }
-    /**
-     * 电流闭环强拖
-     */
-    static void Strong_Drag_Current_Close_Loop(void)
-    {
-        // 强拖需要建立一定的磁场，给定一个固定电流参考值1A
-        motor.foc.Id_ref = 1.0f;
-        // 获取目标速度
-        motor.tra.TargetSpeed = motor.sample.washer_vlaue;
-        motor.tra.ops->TAccDac(&motor.tra);
-        // 将梯形速度曲线的输出即电角速度作为电角度发生器的输入，生成电角度
-        motor.angle.ElectricalAngleSpeedSet = motor.tra.speedOut;
-        motor.angle.ops->AngleGenerator(&motor.angle);
-        // 将电角度发生器的输出值即电角度作为FOC的角度值进行clarke以及Park变换
-        motor.foc.theta = motor.angle.ElectricalAngleThetaOut;
-        motor.foc.Ia = motor.sample.Ia;
-        motor.foc.Ic = motor.sample.Ic;
-        motor.foc.ops->clarke(&motor.foc);
-        motor.foc.ops->park(&motor.foc);
-        // 电流一阶低通滤波
-        motor.foc.Id_LPF = motor.foc.Id * motor.foc.IdLPFFactor + motor.foc.Id_LPF * (1 - motor.foc.IdLPFFactor);
-        motor.foc.Iq_LPF = motor.foc.Iq * motor.foc.IqLPFFactor + motor.foc.Iq_LPF * (1 - motor.foc.IqLPFFactor);
-        // 滤波后的电流作为电流环的反馈值，计算出Vd, Vq
-        motor.foc.pid_id.feedback = motor.foc.Id_LPF;
-        motor.foc.pid_iq.feedback = motor.foc.Iq_LPF;
-        motor.foc.ops->pid(&motor.foc);
-        motor.foc.ops->pid(&motor.foc);
-        // 反park变换以及svpwm调制
-        motor.foc.ops->antiPark(&motor.foc);
-        motor.foc.V_bus = motor.sample.Vbus;
-        motor.foc.ops->svpwm(&motor.foc);
-    }
-    static void Strong_Drag_Smo_Speed_Current_Loop(void)
-{
-    motor.smo.gain = motor.sample.Vbus * INV_SQRT3;
+	static void Strong_Drag_Smo_Speed_Current_Loop(void)
+	{
+		motor.smo.gain = motor.sample.Vbus * INV_SQRT3;
 
-    motor.tra.TargetSpeed = motor.sample.washer_vlaue;
-    motor.tra.ops->TAccDac(&motor.tra);
+		motor.tra.TargetSpeed = motor.sample.washer_vlaue;
+		motor.tra.ops->TAccDac(&motor.tra);
 
-    motor.angle.ElectricalAngleSpeedSet = motor.tra.speedOut;
-    motor.angle.ops->AngleGenerator(&motor.angle);
+		motor.angle.ElectricalAngleSpeedSet = motor.tra.speedOut;
+		motor.angle.ops->AngleGenerator(&motor.angle);
 
-    motor.smo.Rs = MOTOR_RS;
-    motor.smo.Ld = MOTOR_LD;
-    motor.smo.I_alpha = motor.foc.I_alpha;
-    motor.smo.I_beta = motor.foc.I_beta;
-    motor.smo.U_alpha = motor.foc.V_alpha;
-    motor.smo.U_beta = motor.foc.V_beta;
-    motor.smo.ops->SMO(&motor.smo);
+		motor.smo.Rs = MOTOR_RS;
+		motor.smo.Ld = MOTOR_LD;
+		motor.smo.I_alpha = motor.foc.I_alpha;
+		motor.smo.I_beta = motor.foc.I_beta;
+		motor.smo.U_alpha = motor.foc.V_alpha;
+		motor.smo.U_beta = motor.foc.V_beta;
+		motor.smo.ops->SMO(&motor.smo);
 
-    motor.pll.Dir = motor.tra.speedOutDir;
-    motor.pll.A_in = motor.smo.e_alpha_hat_plf;
-    motor.pll.B_in = motor.smo.e_beta_hat_plf;
-    motor.pll.ops->PLL(&motor.pll);
+		motor.pll.Dir = motor.tra.speedOutDir;
+		motor.pll.A_in = motor.smo.e_alpha_hat_plf;
+		motor.pll.B_in = motor.smo.e_beta_hat_plf;
+		motor.pll.ops->PLL(&motor.pll);
 
-    motor.StrongDragToObs.OpenSpeed = motor.tra.speedOut;
-    motor.StrongDragToObs.CloseSpeed = motor.pll.omega_hat_PLF / TWO_PI * 60.0f;
-    motor.StrongDragToObs.ThetaRef = motor.angle.ElectricalAngleThetaOut;
-    motor.StrongDragToObs.ThetaObs = motor.pll.theta_hat;
-    motor.StrongDragToObs.state = motor.tra.motor_state;
-    Strong_Drag_To_Observer_Cal(&motor.StrongDragToObs);
+		motor.StrongDragToObs.OpenSpeed = motor.tra.speedOut;
+		motor.StrongDragToObs.CloseSpeed = motor.pll.omega_hat_PLF / TWO_PI * 60.0f;
+		motor.StrongDragToObs.ThetaRef = motor.angle.ElectricalAngleThetaOut;
+		motor.StrongDragToObs.ThetaObs = motor.pll.theta_hat;
+		motor.StrongDragToObs.state = motor.tra.motor_state;
+		Strong_Drag_To_Observer_Cal(&motor.StrongDragToObs);
 
-    if (motor.StrongDragToObs.Errflag != 0)
-    {
-        if (motor.StrongDragToObs.ErrTimes == 0)
-        {
-            motor.StrongDragToObs.LastTargetSpeed = motor.tra.speedOut;
-            motor.tra.TargetSpeed = 0;
-            motor.tra.speedOut = 0;
-            motor.tra.speedChangeIncrement = 0;
-            motor.tra.speedTargetIncrement = 0;
+		if (motor.StrongDragToObs.Errflag != 0)
+		{
+			if (motor.StrongDragToObs.ErrTimes == 0)
+			{
+				motor.StrongDragToObs.LastTargetSpeed = motor.tra.speedOut;
+				motor.tra.TargetSpeed = 0;
+				motor.tra.speedOut = 0;
+				motor.tra.speedChangeIncrement = 0;
+				motor.tra.speedTargetIncrement = 0;
 
-            motor.StrongDragToObs.GeneralMode = OPEN_LOOP;
-        }
-        motor.StrongDragToObs.ErrTimes++;
+				motor.StrongDragToObs.GeneralMode = OPEN_LOOP;
+			}
+			motor.StrongDragToObs.ErrTimes++;
 
-        if (motor.StrongDragToObs.ErrTimes > 5000)
-        {
-            motor.StrongDragToObs.ErrTimes = 0;
-            motor.StrongDragToObs.Errflag = 0;
-            motor.tra.TargetSpeed = motor.StrongDragToObs.LastTargetSpeed;
-        }
-    }
-    else
-    {
-        if (motor.StrongDragToObs.GeneralMode == CLOSE_LOOP)
-        {
-            motor.angle.ElectricalAngleThetaOut = motor.pll.theta_hat;
-        }
-    }
+			if (motor.StrongDragToObs.ErrTimes > 5000)
+			{
+				motor.StrongDragToObs.ErrTimes = 0;
+				motor.StrongDragToObs.Errflag = 0;
+				motor.tra.TargetSpeed = motor.StrongDragToObs.LastTargetSpeed;
+			}
+		}
+		else
+		{
+			if (motor.StrongDragToObs.GeneralMode == CLOSE_LOOP)
+			{
+				motor.angle.ElectricalAngleThetaOut = motor.pll.theta_hat;
+			}
+		}
 
-    motor.foc.speed_ref = motor.tra.speedOut;
-    motor.foc.speed_fb = motor.pll.omega_hat_PLF / TWO_PI * 60.0f;
-    if (motor.StrongDragToObs.GeneralMode == CLOSE_LOOP)
-    {
-        motor.foc.ops->pid(&motor.foc);
-        if (motor.StrongDragToObs.LastGeneralMode == OPEN_LOOP)
-        {
-            motor.foc.pid_speed.integral = motor.StrongDragToObs.OpenCurr;
-            motor.foc.pid_speed.output = motor.StrongDragToObs.OpenCurr;
-        }
-    }
-    motor.StrongDragToObs.LastGeneralMode = motor.StrongDragToObs.GeneralMode;
+		motor.foc.speed_ref = motor.tra.speedOut;
+		motor.foc.speed_fb = motor.pll.omega_hat_PLF / TWO_PI * 60.0f;
+		if (motor.StrongDragToObs.GeneralMode == CLOSE_LOOP)
+		{
+			motor.foc.ops->pid(&motor.foc);
+			if (motor.StrongDragToObs.LastGeneralMode == OPEN_LOOP)
+			{
+				motor.foc.pid_speed.integral = motor.StrongDragToObs.OpenCurr;
+				motor.foc.pid_speed.output = motor.StrongDragToObs.OpenCurr;
+			}
+		}
+		motor.StrongDragToObs.LastGeneralMode = motor.StrongDragToObs.GeneralMode;
 
-    motor.foc.Ia = motor.sample.Ia;
-    motor.foc.Ib = motor.sample.Ib;
-    motor.foc.Ic = motor.sample.Ic;
-    motor.foc.ops->clarke(&motor.foc);
+		motor.foc.Ia = motor.sample.Ia;
+		motor.foc.Ib = motor.sample.Ib;
+		motor.foc.Ic = motor.sample.Ic;
+		motor.foc.ops->clarke(&motor.foc);
 
-    if (motor.StrongDragToObs.GeneralMode == OPEN_LOOP)
-        motor.foc.theta = motor.angle.ElectricalAngleThetaOut;
-    else if (motor.StrongDragToObs.GeneralMode == OPEN_LOOP)
-        motor.foc.theta = motor.pll.theta_hat;
-    motor.foc.ops->park(&motor.foc);
+		if (motor.StrongDragToObs.GeneralMode == OPEN_LOOP)
+			motor.foc.theta = motor.angle.ElectricalAngleThetaOut;
+		else if (motor.StrongDragToObs.GeneralMode == OPEN_LOOP)
+			motor.foc.theta = motor.pll.theta_hat;
+		motor.foc.ops->park(&motor.foc);
 
-    motor.foc.Id_LPF = motor.foc.Id * motor.foc.IdLPFFactor + motor.foc.Id_LPF * (1 - motor.foc.IdLPFFactor);
-    motor.foc.Iq_LPF = motor.foc.Iq * motor.foc.IqLPFFactor + motor.foc.Iq_LPF * (1 - motor.foc.IqLPFFactor);
+		motor.foc.Id_LPF = motor.foc.Id * motor.foc.IdLPFFactor + motor.foc.Id_LPF * (1 - motor.foc.IdLPFFactor);
+		motor.foc.Iq_LPF = motor.foc.Iq * motor.foc.IqLPFFactor + motor.foc.Iq_LPF * (1 - motor.foc.IqLPFFactor);
 
-    if (motor.StrongDragToObs.GeneralMode == OPEN_LOOP)
-    {
-        if (fabsf(motor.foc.pid_speed.target) < 10)
-        {
-            motor.foc.pid_speed.integral = 0;
-            motor.foc.pid_speed.output = 0;
-            motor.foc.pid_speed.target = 0;
-            motor.smo.e_alpha_hat_plf = 0;
-            motor.smo.e_beta_hat_plf = 0;
-            motor.pll.omega_hat_PLF = 0;
-        }
-        else
-        {
-            motor.foc.pid_id.target = motor.StrongDragToObs.OpenCurr;
-            motor.foc.pid_iq.target = 0;
-        }
-    }
-    else
-    {
-        motor.foc.pid_iq.target = motor.foc.pid_speed.output;
-        motor.foc.pid_id.target = 0;
-    }
-    motor.foc.pid_id.feedback = motor.foc.Id_LPF;
-    motor.foc.pid_iq.feedback = motor.foc.Iq_LPF;
-    motor.foc.ops->pid(&motor.foc);
+		if (motor.StrongDragToObs.GeneralMode == OPEN_LOOP)
+		{
+			if (fabsf(motor.foc.pid_speed.target) < 10)
+			{
+				motor.foc.pid_speed.integral = 0;
+				motor.foc.pid_speed.output = 0;
+				motor.foc.pid_speed.target = 0;
+				motor.smo.e_alpha_hat_plf = 0;
+				motor.smo.e_beta_hat_plf = 0;
+				motor.pll.omega_hat_PLF = 0;
+			}
+			else
+			{
+				motor.foc.pid_id.target = motor.StrongDragToObs.OpenCurr;
+				motor.foc.pid_iq.target = 0;
+			}
+		}
+		else
+		{
+			motor.foc.pid_iq.target = motor.foc.pid_speed.output;
+			motor.foc.pid_id.target = 0;
+		}
+		motor.foc.pid_id.feedback = motor.foc.Id_LPF;
+		motor.foc.pid_iq.feedback = motor.foc.Iq_LPF;
+		motor.foc.ops->pid(&motor.foc);
 
-    motor.foc.Vd = motor.foc.pid_id.output;
-    motor.foc.Vq = motor.foc.pid_iq.output;
-    motor.foc.ops->antiPark(&motor.foc);
+		motor.foc.Vd = motor.foc.pid_id.output;
+		motor.foc.Vq = motor.foc.pid_iq.output;
+		motor.foc.ops->antiPark(&motor.foc);
 
-    motor.foc.V_bus = motor.sample.Vbus;
-    motor.foc.ops->svpwm(&motor.foc);
-}
+		motor.foc.V_bus = motor.sample.Vbus;
+		motor.foc.ops->svpwm(&motor.foc);
+	}
 #elif (MOTOR_CONTROLER == FOC_SENSOR)
 // 有感算法
 #endif
