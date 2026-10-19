@@ -28,6 +28,7 @@
 #define TWO_PI                  6.2831852f
 #define MOTOR_RS                0.0f        // TODO: 定子相电阻 (Ω)
 #define MOTOR_LD                0.0f        // TODO: 定子相电感 (H)
+#define INV_SQRT3               0.57735f    // 1/√3
 /*******************************************************滑膜观测器(SMO)****************************************************/
 #define SMO_GAIN                0.0f        // TODO: 滑膜增益
 #define SMO_PHI                 1.0f        // 滑膜边界层（饱和函数阈值）

@@ -29,9 +29,9 @@ typedef struct
 
 typedef enum
 {
-    MOTOR_ACC = 0U,
-    MOTOR_DAC,
-    MOTOR_UNIFORM,
+    ACCELERATE = 0,         //加速
+    UNIFORM,                //匀速
+    DECELERATE              //减速
 }MOTOR_STATE;
 
 struct TAccDac

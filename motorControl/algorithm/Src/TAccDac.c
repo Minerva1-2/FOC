@@ -33,8 +33,8 @@ void TAccDac(TAccDac_t *p)
     p->speedDeltaIncrement = fabsf(p->speedChangeIncrement) - p->speedLastIncrement;
     p->speedLastIncrement = fabsf(p->speedChangeIncrement);
     // 状态判断
-    p->motor_state = p->speedDeltaIncrement > 0.0f ? MOTOR_ACC :
-                     (p->speedDeltaIncrement < 0.0f ? MOTOR_DAC : MOTOR_UNIFORM);
+    p->motor_state = p->speedDeltaIncrement > 0.0f ? ACCELERATE :
+                     (p->speedDeltaIncrement < 0.0f ? DECELERATE : UNIFORM);
     // 锁相环方向计算
     p->speedOutDir = p->speedChangeIncrement > 0.0f ? -1 : 1;
     // 输出目标速度，由于输出给速度环使用，因此转换为电角速度，speedChangeIncrement单位是转数
