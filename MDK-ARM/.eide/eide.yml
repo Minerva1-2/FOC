@@ -207,7 +207,7 @@ targets:
             warnings: ac5-like-warnings
           global:
             output-debug-info: enable
-            use-microLIB: false
+            use-microLIB: true
           linker:
             $outputTaskExcludes:
               - .bin

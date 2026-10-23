@@ -21,6 +21,8 @@
 #include "usart.h"
 
 /* USER CODE BEGIN 0 */
+/* printf 重定向需要 stdio.h 中的 FILE 类型与 fputc 原型 */
+#include <stdio.h>
 
 /* USER CODE END 0 */
 
@@ -141,6 +143,67 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 }
 
 /* USER CODE BEGIN 1 */
+/*************************************************************************************************************************/
+/**************************************************printf 重定向到 USART1*************************************************/
+/*************************************************************************************************************************/
+/* 说明：本工程未勾选 Keil 的 Use MicroLIB（MDK-ARM/FOC.uvprojx 中 useUlib=0），此时直接调用 printf，
+ *       ARM C 库会走半主机(semihosting)，脱机运行时停在 BKPT 上。这里用 __use_no_semihosting 关闭半主机，
+ *       并提供库要求的桩函数（_sys_exit / _ttywrch / _sys_open），再通过 fputc 把字符写进 USART1 数据寄存器。
+ * 注意：fputc 是阻塞轮询（115200 下一个字符约 87us），不要在 FOC 电流环/ADC 注入中断里调用 printf。 */
+#if defined(__MICROLIB)
+/* MicroLIB 有自己精简的 retarget 路径，不需要半主机桩函数 */
+#else
+#if defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)
+__asm(".global __use_no_semihosting\n\t");
+#else
+#pragma import(__use_no_semihosting)
+#endif
+
+/* 半主机桩函数：供链接器解析，使 arm C 库不引入 semihosting */
+void _sys_exit(int x)
+{
+    (void)x;
+    for (;;)
+    {
+    }
+}
+
+void _ttywrch(int ch)
+{
+    (void)ch;
+}
+
+/* arm C 库在链接 printf 时会引用 _sys_open（半主机文件打开接口），必须给它一个定义，
+ * 否则链接报 L6915E: __use_no_semihosting was requested, but _sys_open was referenced。
+ * 这里返回 -1（无文件系统）即可；链接时该段因未被实际调用会被 --remove 掉，不占 Flash */
+int _sys_open(const char *name, int openmode)
+{
+    (void)name;
+    (void)openmode;
+    return -1;
+}
+
+FILE __stdout;
+#endif /* __MICROLIB */
+
+/* printf -> fputc -> USART1->TDR
+ * 1. 用寄存器轮询而非 HAL_UART_Transmit：后者依赖 HAL tick 和超时机制，在中断上下文里不安全
+ * 2. guard 是保险：USART1 未使能（TXE 意外不置位）时不会在 fputc 里无限等待
+ * 3. 只等 TXE 不等 TC：末尾字符仍在移位寄存器中发送，复位前要保证发完可再等一次 TC
+ * 4. printf 不可重入：中断与主循环同时打印会让字符交错，调试输出请集中在一个上下文里 */
+int fputc(int ch, FILE *f)
+{
+    uint32_t guard = 100000u;
+
+    (void)f;
+    while (((USART1->ISR & USART_ISR_TXE_TXFNF) == 0u) && (--guard != 0u))
+    {
+    }
+    if (guard != 0u)
+        USART1->TDR = (uint8_t)ch;
+
+    return ch;
+}
 
 /* USER CODE END 1 */
 

@@ -2,7 +2,7 @@
  * @Author: Minerva1-2 18993035310@163.com
  * @Date: 2026-09-24 20:42:33
  * @LastEditors: Minerva1-2 18993035310@163.com
- * @LastEditTime: 2026-10-10 22:27:16
+ * @LastEditTime: 2026-10-20 13:53:41
  * @FilePath: \MDK-ARMd:\cubemx\project\keil\FOC\motorControl\userDef.h
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -23,59 +23,87 @@
 /*********************************************************基本参数*********************************************************/
 /*************************************************************************************************************************/
 #define MOTOR_PAIRS             7                       // 电机极对数
-#define CONTROLER_TIME          0.000005f               // FOC运行时间
+#define CONTROLER_TIME          0.00005f                // FOC运行时间：50us → 20kHz（TIM1 中央对齐 ARR=4250、RCR=1）
 #define PI                      3.1415926f
 #define TWO_PI                  6.2831852f
-#define MOTOR_RS                0.0f        // TODO: 定子相电阻 (Ω)
-#define MOTOR_LD                0.0f        // TODO: 定子相电感 (H)
-#define INV_SQRT3               0.57735f    // 1/√3
+#define MOTOR_RS                0.18f                   // 定子相电阻 (Ω)：实测值（参考工程辨识时 LCD 显示 184 mΩ，两者基本一致）
+#define MOTOR_LD                0.00007f                // 定子相电感 (H)：实测约 70 µH，表贴式电机 Ld = Lq
+#define INV_SQRT3               0.57735f                // 1/√3
+#define SPEED_K					250						// 波轮电位器换算系数：adc(0~4095)→0~3.3V→0~825 机械 RPM
+															// 上限受 SMO 能力约束：反电势≈6.4mV·s/rad，825RPM(5775电RPM)约 3.9V < 增益 6.33V
+/*************************************************************************************************************************/
+/********************************************************PWM 输出参数*******************************************************/
+/*************************************************************************************************************************/
+/* 摘自参考工程 motor_publicdata.h：PWM_CYCLE 8500（中央对齐整周期，= 2×ARR）、PWM_LIMLT 7800（最大调制对应计数） */
+#define PWM_ARR                 4250u       // TIM1 ARR 计数值：170MHz / (2×4250) = 20kHz（中央对齐，RCR=1）
+#define PWM_CCR_MIN             350u        // CCR 两端让出的裕量 =(8500-7800)/2，最小高电平 350/4250 ≈ 8.2%
+#define PWM_INVERTED            1u          // 1 = TIM_OCMODE_PWM2（占空比 =(ARR-CCR)/ARR），与 tim.c 配置一致
+/*************************************************************************************************************************/
+/*********************************************************调试开关*********************************************************/
+/*************************************************************************************************************************/
+/* 1 = 开环强拖走 V/F 形式（固定电压矢量 + 旋转角度），完全绕过电流环与观测器，
+ *     用于单独验证 驱动使能 / PWM 输出 / 相序 这条硬件通路；
+ * 0 = 正常形式（q 轴电流闭环 + 并行 SMO/PLL） */
+#define VF_DRAG_TEST            0
+/*************************************************************************************************************************/
+/*********************************************************保护阈值*********************************************************/
+/*************************************************************************************************************************/
+/* 与参考工程 motor_publicdata.h:28-30 一致；任一条件成立即封锁驱动输出 */
+#define OVER_CURRENT            12.0f       // 最大相电流 (A)，超过即停机
+#define BUS_VOLTAGE_MIN         10.0f       // 最小供电电压 (V)，低于即停机（同时避免 1/Vbus 除零）
+#define BUS_VOLTAGE_MAX         40.0f       // 最大供电电压 (V)，超过即停机
 /*******************************************************滑膜观测器(SMO)****************************************************/
-#define SMO_GAIN                0.0f        // TODO: 滑膜增益
+#define SMO_GAIN                14.0f       // 滑模增益（须大于最高转速下的反电势幅值，单位 V）
 #define SMO_PHI                 1.0f        // 滑膜边界层（饱和函数阈值）
-#define SMO_FC                  0.0f        // TODO: 反电势低通滤波截止频率 (Hz)
-#define SMO_E_PLF_FACTOR        0.0f        // TODO: 反电势一阶低通滤波系数 (0~1)
+#define SMO_FC                  0.0f        // 反电势低通滤波截止频率 (Hz)：当前 SMO 用 SMO_E_PLF_FACTOR 做一阶滤波，此宏与 wc 未参与运算
+#define SMO_E_PLF_FACTOR        0.1f        // 反电势一阶低通滤波系数 (0~1)
 /*********************************************************锁相环(PLL)******************************************************/
 #define PLL_DIR                 1           // 旋转方向：+1 / -1
-#define PLL_KP                  0.0f        // TODO: PLL 比例增益
-#define PLL_KI                  0.0f        // TODO: PLL 积分增益
-#define PLL_PLF_FACTOR          0.1f        // TODO: 估算角速度一阶低通滤波系数 (0~1)
+#define PLL_KP                  1200.0f     // PLL 比例增益（rad/s per V）
+#define PLL_KI                  100.0f      // PLL 积分增益：与参考工程同为“integral += Ki×误差”，不加 Ts，可直接沿用
+#define PLL_PLF_FACTOR          0.01f       // 估算角速度一阶低通滤波系数 (0~1)
 /********************************************************电流环PID*********************************************************/
-#define PID_ID_KP               0.0f        // TODO: d 轴电流环比例增益
-#define PID_ID_KI               0.0f        // TODO: d 轴电流环积分增益
+/* Kp 可直接沿用参考工程；Ki 需要换算：
+ * 参考工程 PID 为 integral += Ki×err（Ki 已含采样时间），本工程 Pid_calc 为 integral += Ki×err×Ts，
+ * 故 Ki = Ki_ref / Ts = 0.002 / 0.00005 = 40.0f */
+#define PID_ID_KP               0.2f        // d 轴电流环比例增益 (V/A)
+#define PID_ID_KI               40.0f       // d 轴电流环积分增益（已按 Ts 折算）
 #define PID_ID_KD               0.0f        // d 轴电流环微分增益
-#define PID_ID_LIMIT            0.0f        // TODO: d 轴电压输出限幅 (V)
+#define PID_ID_LIMIT            6.0f        // d 轴电压输出限幅 (V)：≈ Vbus/√3，保证 SVPWM 不进入饱和区（母线 10.9V 时约 6.3V）
 
-#define PID_IQ_KP               0.0f        // TODO: q 轴电流环比例增益
-#define PID_IQ_KI               0.0f        // TODO: q 轴电流环积分增益
+#define PID_IQ_KP               0.2f        // q 轴电流环比例增益 (V/A)
+#define PID_IQ_KI               40.0f       // q 轴电流环积分增益（已按 Ts 折算）
 #define PID_IQ_KD               0.0f        // q 轴电流环微分增益
-#define PID_IQ_LIMIT            0.0f        // TODO: q 轴电压输出限幅 (V)
+#define PID_IQ_LIMIT            6.0f        // q 轴电压输出限幅 (V)：≈ Vbus/√3，保证 SVPWM 不进入饱和区（母线 10.9V 时约 6.3V）
 /*********************************************************速度环PID*********************************************************/
-#define PID_SPEED_KP            0.0f        // TODO: 速度环比例增益
-#define PID_SPEED_KI            0.0f        // TODO: 速度环积分增益
+/* 速度环每 FOC_SPEED_DIV 个电流周期执行一次，故 Ki = 0.000002 / (Ts × FOC_SPEED_DIV) = 0.000002 / 0.0001 = 0.02f */
+#define PID_SPEED_KP            0.0003f     // 速度环比例增益 (A/rpm)：原 0.001 太猛，1000rpm 误差就给出 1A，
+											// 切换瞬间观测速度滞后时 Iq 会直接冲到限幅 6A → 转子被摁住
+#define PID_SPEED_KI            0.005f      // 速度环积分增益（已按 Ts×分频 折算，与 Kp 同比例下调）
 #define PID_SPEED_KD            0.0f        // 速度环微分增益
-#define PID_SPEED_LIMIT         0.0f        // TODO: 速度环输出（q 轴电流给定）限幅 (A)
-#define FOC_SPEED_DIV           10u         // 速度环分频比：速度环周期 = 电流环周期 × FOC_SPEED_DIV
+#define PID_SPEED_LIMIT         6.0f        // 速度环输出（q 轴电流给定）限幅 (A)
+#define FOC_SPEED_DIV           2u          // 速度环分频比：速度环周期 = 电流环周期 × FOC_SPEED_DIV
 /******************************************************梯形加减速(TAccDac)**************************************************/
-#define TRA_TARGET_SPEED        0.0f        // 目标转速 (RPM)
-#define TRA_ACC_SPEED           0.0f        // 加速度 (RPM/s)
+#define TRA_TARGET_SPEED        0.0f        // 目标转速 (RPM)：运行时由 motor.sample.washer_vlaue 覆盖
+#define TRA_ACC_SPEED           1000.0f     // 加速度 (RPM/s)：0→825RPM 用 0.82s，给 CheckCnt/观测器充分收敛时间
 /*********************************************************硬件引脚绑定******************************************************/
 /* 电机驱动芯片使能引脚 */
-#define MOTOR_A_PORT            GPIOC
-#define MOTOR_A_PIN             GPIO_PIN_13
-#define MOTOR_B_PORT            GPIOC
-#define MOTOR_B_PIN             GPIO_PIN_14
-#define MOTOR_C_PORT            GPIOC
-#define MOTOR_C_PIN             GPIO_PIN_15
-#define MOTOR_D_PORT            GPIOB
+#define MOTOR_A_PORT            GPIOB
+#define MOTOR_A_PIN             GPIO_PIN_0
+#define MOTOR_B_PORT            GPIOA
+#define MOTOR_B_PIN             GPIO_PIN_1
+#define MOTOR_C_PORT            GPIOA
+#define MOTOR_C_PIN             GPIO_PIN_2
+#define MOTOR_D_PORT            GPIOA
 #define MOTOR_D_PIN             GPIO_PIN_0
 
 /* 指示灯引脚 */
-#define LED_A_PORT              GPIOA
-#define LED_A_PIN               GPIO_PIN_0
-#define LED_B_PORT              GPIOA
-#define LED_B_PIN               GPIO_PIN_1
-#define LED_C_PORT              GPIOA
-#define LED_C_PIN               GPIO_PIN_2
+#define LED_A_PORT              GPIOC
+#define LED_A_PIN               GPIO_PIN_15
+#define LED_B_PORT              GPIOC
+#define LED_B_PIN               GPIO_PIN_14
+#define LED_C_PORT              GPIOC
+#define LED_C_PIN               GPIO_PIN_13
 /*************************************************************************************************************************/
 /********************************************************变量重定义********************************************************/
 /*************************************************************************************************************************/

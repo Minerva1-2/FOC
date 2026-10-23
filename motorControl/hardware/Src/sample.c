@@ -21,7 +21,7 @@ static void MotorCurrent(SAMPLE_t *p)
         p->current_adc_a += raw_a;  
         p->current_adc_c += raw_c;
         // 采样周期计算
-        if (++p->clai_time_cnt > SAMPLE_CALI_TIMES)
+        if (++p->clai_time_cnt >= SAMPLE_CALI_TIMES)
         {
             // 电流零位值
             p->offset_a = (u16)(p->current_adc_a / SAMPLE_CALI_TIMES);
@@ -33,10 +33,13 @@ static void MotorCurrent(SAMPLE_t *p)
             p->cali_flag = true;
         }
     }
-    // 校准结束，计算运行时三相电流值
-    p->Ia = (float)(raw_a - p->offset_a) / SAMPLE_I_PER_LSB;
-    p->Ic = (float)(raw_c - p->offset_c) / SAMPLE_I_PER_LSB;
-    p->Ib = -(p->Ia + p->Ic);
+	else
+	{
+		// 校准结束，计算运行时三相电流值
+		p->Ia = (float)(raw_a - p->offset_a) * SAMPLE_I_PER_LSB;
+		p->Ic = (float)(raw_c - p->offset_c) * SAMPLE_I_PER_LSB;
+		p->Ib = -(p->Ia + p->Ic);
+	}
 }
 static void MotorVbus(SAMPLE_t *p)
 {
@@ -46,7 +49,7 @@ static void MotorVbus(SAMPLE_t *p)
 static void Washer(SAMPLE_t *p)
 {
     p->washer_adc = p->g_adc_buf[3];
-    p->washer_vlaue = p->washer_adc / ADC_FULL_SCALE * ADC_VREF;
+    p->washer_vlaue = p->washer_adc / ADC_FULL_SCALE * ADC_VREF * SPEED_K;
 }
 static void MotorTemp(SAMPLE_t *p)
 {

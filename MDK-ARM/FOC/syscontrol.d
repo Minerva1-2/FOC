@@ -1,4 +1,5 @@
 foc/syscontrol.o: ..\motorControl\Src\sysControl.c \
+  D:\keil\core\ARM\ARMCLANG\Bin\..\include\stdio.h \
   ..\motorControl\Inc\sysControl.h ..\motorControl\Inc\userDef.h \
   D:\keil\core\ARM\ARMCLANG\Bin\..\include\stdint.h \
   ..\motorControl\algorithm\Inc\foc.h \

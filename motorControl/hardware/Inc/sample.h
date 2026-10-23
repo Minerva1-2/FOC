@@ -23,7 +23,7 @@
 #define NTC_B_VALUE                 3434.0f                                         // NTC B 值(25/85)
 #define NTC_T25_K                   (25.0f + K_TEMPERATURE)                         // 25℃ 对应的开氏温度
 #define AMP_GAIN                    10u                                             // 运放增益
-#define SAMPLE_CALI_TIMES           256u                                            // 零点校准次数
+#define SAMPLE_CALI_TIMES           1024u                                           // 零点校准次数
 #define TEMP_SAMPLE_NUM             1000u                                           // 温度计算节流：约每 1000 次ADC完成回调算一次
 #define I_ZERO_RAW                  (I_ZERO_VOLT / ADC_VREF * ADC_FULL_SCALE)       // 零位ADC数值
 #define SAMPLE_I_PER_LSB            ((ADC_VREF / ADC_FULL_SCALE) / (SHUNT_RESISTOR_OHM * AMP_GAIN))     // 转换为电流时的系数
@@ -58,7 +58,8 @@ struct SAMPLE
     float Vbus;
     /* 波轮电位器采样 */
     u16 washer_adc;                                 // 电位器adc原始值
-    u16 washer_vlaue;                               // 计算得到的数值
+    float washer_vlaue;                             // 计算得到的数值
+	float target_speed;								// 由波轮电位器计算得到的数值
     /* 电机温度采样 */
     u16 temp_adc;                                   // adc原始值
     float current_resistance;                       // 当前阻值

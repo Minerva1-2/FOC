@@ -42,8 +42,9 @@ void PLL(PLL_t *p)
     p->omega_hat = p->Kp * p->theta_err + p->integral;  // 观测角速度
     // 一阶低通滤波
     p->omega_hat_PLF = p->omega_hat * p->omega_hat_PLF_factor + (1.0f - p->omega_hat_PLF_factor) * p->omega_hat_PLF;
-    // 计算观测角度(压控振荡器)
-    p->theta_hat = p->omega_hat_PLF * p->Ts;
+    // 计算观测角度(压控振荡器)：角度是累加量，这里必须累加而不是赋值
+    // 用未滤波的 omega_hat 参与积分（与参考工程 ThetaFore += WeFore * Ts 保持一致）
+    p->theta_hat += p->omega_hat * p->Ts;
     if (p->theta_hat > TWO_PI)
         p->theta_hat -= TWO_PI;
     else if (p->theta_hat < 0)

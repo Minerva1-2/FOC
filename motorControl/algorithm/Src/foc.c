@@ -54,7 +54,13 @@ static void Pid(FOC_t *p)
     // 电流环, 20KHz
     p->Vd = Pid_calc(&p->pid_id, p->Ts);
     p->Vq = Pid_calc(&p->pid_iq, p->Ts);
-    // 速度环, 电流环的speed_div时间执行一次
+}
+
+/* 速度环：每 speed_div 个电流周期执行一次。
+ * 与参考工程一致——只由上层在闭环模式下调用；开环强拖阶段不执行，
+ * 否则速度环积分会在强拖期间一直累积，切闭环瞬间产生冲击 */
+static void SpeedPid(FOC_t *p)
+{
     if (p->speed_div > 0)
     {
         if (++p->speed_div_cnt >= p->speed_div)
@@ -118,6 +124,9 @@ static void SVPWM(FOC_t *p)
     Va += V_offset;
     Vb += V_offset;
     Vc += V_offset;
+	p->Va = Va;
+	p->Vb = Vb;
+	p->Vc = Vc;
     // 设置PWM占空比
     float inv_adc = 1.0f / p->V_bus;
     p->duty_a = 0.5f + Va * inv_adc;
@@ -140,6 +149,7 @@ const FOC_OPS_t foc_ops = {
     .clarke = Clarke,
     .park = Park,
     .pid = Pid,
+    .speedPid = SpeedPid,
     .antiPark = antiPark,
     .svpwm = SVPWM,
 };

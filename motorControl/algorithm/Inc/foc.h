@@ -24,6 +24,7 @@ typedef struct
     void (*clarke)(FOC_t *p);
     void (*park)(FOC_t *p);
     void (*pid)(FOC_t *p);
+    void (*speedPid)(FOC_t *p);
     void (*antiPark)(FOC_t *p);
     void (*svpwm)(FOC_t *p);
 }FOC_OPS_t;

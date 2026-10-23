@@ -45,14 +45,17 @@ typedef struct
     float EleCloseSpeedAbs;
     float SpeedErr;
     float SpeedErrFlt;
+    float ThetaOffset;
     float LastTargetSpeed;
     float Curr_change_uint;
     float OpenToCloseSwitchSpeed;
+    float CloseToOpenSwitchSpeed;
     float CloseMinSpeed;
 }StrongDragToObs_t;
 
 typedef struct
 {
+    const char *name;
     GeneralMode_t GeneralMode;
     FOC_t       foc;
     SMO_t       smo;
@@ -62,10 +65,13 @@ typedef struct
     DRIVER_t    driver;
     SAMPLE_t    sample;
     StrongDragToObs_t StrongDragToObs;
+    float theta_acc;        /* 中断里逐拍累加的电角度（rad），供调试观测，不受推流速率限制 */
 }Motor_t;
 
 // /* 全局唯一电机实例：所有模块的数据都在 sysControl.c 中统一初始化 */
-// extern Motor_t motor;
+extern Motor_t motor;
+
+int motorInit(void);
 
 static inline float Sat(float value, float min, float max){
     if(value >= max){

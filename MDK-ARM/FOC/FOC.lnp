@@ -35,7 +35,7 @@
 "foc\taccdac.o"
 "foc\driver.o"
 "foc\sample.o"
---strict --scatter "FOC\FOC.sct"
+--library_type=microlib --strict --scatter "FOC\FOC.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers
 --list "FOC.map" -o FOC\FOC.axf
