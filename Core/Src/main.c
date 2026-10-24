@@ -65,7 +65,7 @@ static uint32_t dbg_last_tick = 0u;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-static void DebugStream_Poll(void);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -170,80 +170,7 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-/**
- * 组一帧调试数据：DBG_CH_NUM 个 float + JustFloat 帧尾（00 00 80 7F）
- * 通道顺序要与 VOFA+ 里配置的一致，改动这里记得同步改上位机
- */
-static void DebugStream_Load(void)
-{
-    float ch[DBG_CH_NUM];
 
-    /* 三相电流要在同一控制周期内取值，否则中断插在中间会读到不同拍的混合值 */
-    float iq = motor.foc.Iq_LPF;
-    float spd_out = motor.tra.speedOut;
-
-    /* ---- 通道 0~3：梯形速度曲线专用，统一换算成"机械 RPM"，量级一致可直接对比 ----
-     *   I0 = 目标速度（电位器给出的阶跃）
-     *   I1 = 曲线输出（梯形斜坡）
-     *   I2 = 实际反馈（PLL 观测转速）
-     *   I3 = 运动状态 0=加速 1=匀速 2=减速（左轴会被压扁，可单独放大看）
-     */
-    ch[0] = motor.tra.TargetSpeed;                                    /* 机械 RPM */
-    ch[1] = spd_out / MOTOR_PAIRS;                                    /* 电RPM → 机械RPM */
-    ch[2] = motor.pll.omega_hat_PLF / TWO_PI * 60.0f / MOTOR_PAIRS;   /* rad/s → 机械RPM */
-    ch[3] = (float)motor.tra.motor_state;
-
-    /* ---- 通道 4~14：其他调试量 ---- */
-    ch[4]  = motor.sample.Vbus;
-    ch[5]  = iq;                                                      /* q 轴电流（A）*/
-    ch[6]  = motor.sample.washer_vlaue;                               /* 电位器给定（机械 RPM）*/
-    ch[7]  = (float)motor.StrongDragToObs.GeneralMode;                /* 1=开环 2=闭环 */
-    ch[8]  = (float)motor.StrongDragToObs.CheckCnt;
-    ch[9]  = motor.StrongDragToObs.ThetaErr;
-    ch[10] = motor.pll.omega_hat_PLF;                                 /* 电角速度 rad/s */
-    ch[11] = motor.sample.motor_temp;
-    ch[12] = motor.foc.duty_a;
-    ch[13] = motor.tra.speedChangeIncrement * 1.0e6f;                 /* 位置增量×1e6，看斜坡细分用 */
-    /* I14：中断里逐拍累加的电角度（rad）。
-     * 不能在主循环里用 10ms 的采样点做差分展开：812RPM 时每 10ms 转 5.97 rad > π，
-     * 超过奈奎斯特极限，展开会失败（表现为"角度几乎不变"）。
-     * 中断里每 50us 只转 0.03 rad，可以正确累加，斜率就是电角速度。 */
-    ch[14] = motor.theta_acc;
-
-    memcpy(dbg_frame, ch, sizeof(ch));
-    dbg_frame[DBG_CH_NUM * 4u + 0u] = 0x00u;
-    dbg_frame[DBG_CH_NUM * 4u + 1u] = 0x00u;
-    dbg_frame[DBG_CH_NUM * 4u + 2u] = 0x80u;
-    dbg_frame[DBG_CH_NUM * 4u + 3u] = 0x7Fu;
-
-    dbg_idx  = 0u;
-    dbg_busy = 1u;
-}
-
-/**
- * 非阻塞调试推流
- * 1. 每 10ms 组一帧（固定 44 字节），帧长与数值大小无关，转速再高也不会变长
- * 2. 之后每个主循环只在 TXE 置位时写一个字节，单次开销几十 ns，主循环不再被串口阻塞
- * 3. 44 字节在 115200 下约 3.8ms 发完，留 6ms 余量
- */
-static void DebugStream_Poll(void)
-{
-    if (dbg_busy == 0u)
-    {
-        if ((HAL_GetTick() - dbg_last_tick) >= 10u)
-        {
-            dbg_last_tick = HAL_GetTick();
-            DebugStream_Load();
-        }
-        return;
-    }
-    if ((USART1->ISR & USART_ISR_TXE_TXFNF) != 0u)
-    {
-        USART1->TDR = dbg_frame[dbg_idx++];
-        if (dbg_idx >= DBG_FRAME_LEN)
-            dbg_busy = 0u;
-    }
-}
 /* USER CODE END 4 */
 
 /**
