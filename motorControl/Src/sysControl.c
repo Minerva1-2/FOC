@@ -2,7 +2,7 @@
  * @Author: Minerva1-2 18993035310@163.com
  * @Date: 2026-10-10 22:09:56
  * @LastEditors: Minerva1-2 18993035310@163.com
- * @LastEditTime: 2026-10-20 11:30:29
+ * @LastEditTime: 2026-10-24 14:42:11
  * @FilePath: \MDK-ARMd:\keil\project\FOC\motorControl\Src\sysControl.c
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -13,12 +13,25 @@
 #include "tim.h"
 #include "stm32g4xx_it.h"
 /*************************************************************************************************************************/
+/*********************************************************变量定义********************************************************/
+/*************************************************************************************************************************/
+static uint8_t  dbg_frame[DBG_FRAME_LEN];
+static uint16_t dbg_idx             = 0u;
+static volatile uint8_t dbg_busy    = 0u;
+static uint32_t dbg_last_tick       = 0u;
+static uint32_t dbg_send_tick       = 0u;
+/*************************************************************************************************************************/
 /*********************************************************电机实例********************************************************/
 /*************************************************************************************************************************/
 /* 说明：所有模块的数据（算法参数、Ts、硬件引脚）都在此处一次性初始化；
  *       底层模块只提供算法与 ops 函数表，不持有任何配置数据。
  *       ops 指针在 motorInit() 中通过各 *_register() 绑定。 */
 Motor_t motor = {
+    .name = NULL,
+    .GeneralMode = MOTOR_CALIB,
+    .hadc = &hadc2,
+	.adc_base = ADC2,
+    .tim_base = TIM1,
     .foc = {
         .Ts            = CONTROLER_TIME,
         .V_bus         = 0.0f,
@@ -100,10 +113,6 @@ Motor_t motor = {
     .sample = {
         .cali_flag = false,
     },
-    
-    .GeneralMode = MOTOR_CALIB,
-
-    .name = NULL,
 };
 /*************************************************************************************************************************/
 /********************************************************初始化接口*******************************************************/
@@ -140,9 +149,9 @@ int motorInit(void)
     motor.driver.ops->motorDisable(&motor.driver);
     motor.driver.ops->LedOn(&motor.driver);
     // 开启中断
-    HAL_ADC_Start_DMA(&hadc2, (uint32_t *)&motor.sample.g_adc_buf[2], 3);
-    HAL_ADCEx_InjectedStart_IT(&hadc2);
-    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_ALL);
+    HAL_ADC_Start_DMA(motor.hadc, (uint32_t *)&motor.sample.g_adc_buf[2], 3);
+    HAL_ADCEx_InjectedStart_IT(motor.hadc);
+    HAL_TIM_PWM_Start(motor.driver.htim, TIM_CHANNEL_ALL);
     /* 使能 TIM1 更新中断（20kHz）：此后每个 PWM 周期由 HAL_TIM_PeriodElapsedCallback
      * 触发一次 ADC 注入转换，注入完成中断里跑一整套 FOC，构成 50us 的控制周期。
      * 注意不能改用 HAL_TIM_Base_Start_IT()：HAL_TIM_PWM_Start() 已把 htim1.State 置为
@@ -153,10 +162,10 @@ int motorInit(void)
      * 28 位落在 CCER 的保留位上，CH1/CH2/CH3 的 CCxE 一个都不会被置位，
      * 于是 MOE 虽然开了、CCR 也在变，但三个引脚上根本没有波形（电机不可能转）。
      * 参考工程 ShengHaoFOC 也是分三次调用 CH1/CH2/CH3。 */
-    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
-    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
-    __HAL_TIM_ENABLE_IT(&htim1, TIM_IT_UPDATE);
+    HAL_TIM_PWM_Start(motor.driver.htim, TIM_CHANNEL_1);
+    HAL_TIM_PWM_Start(motor.driver.htim, TIM_CHANNEL_2);
+    HAL_TIM_PWM_Start(motor.driver.htim, TIM_CHANNEL_3);
+    __HAL_TIM_ENABLE_IT(motor.driver.htim, TIM_IT_UPDATE);
     /* 启动 PWM 输出、启动 ADC-DMA 采样（本层框架不接管外设启动） */
     printf("function register success, TIM && ADC enabled, System init done...\r\n");
 
@@ -624,9 +633,13 @@ int motorInit(void)
             motor.foc.pid_id.output = 0;
             motor.foc.pid_iq.output = 0;
             motor.foc.pid_speed.output = 0;
-            motor.pll.integral = 0;
-            motor.StrongDragToObs.GeneralMode = OPEN_LOOP;
-            motor.StrongDragToObs.LastGeneralMode = OPEN_LOOP;
+            #if (defined(SENSORLESS_SMO))
+                motor.pll.integral = 0;
+                motor.StrongDragToObs.GeneralMode = OPEN_LOOP;
+                motor.StrongDragToObs.LastGeneralMode = OPEN_LOOP;
+            #elif
+                
+            #endif
             return;
         }
         /* 条件恢复后重新使能（只在状态变化时写一次 GPIO） */
@@ -639,10 +652,18 @@ int motorInit(void)
         switch (motor.StrongDragToObs.GeneralMode)
         {
             case OPEN_LOOP:
-                Strong_Drag_Current_Close_Loop();       /* 开环强拖 */
+                #if (defined(SENSORLESS_VF))
+                    Strong_Drag_Current_Close_Loop();       /* 开环强拖 */
+                #elif
+                
+                #endif
                 break;
             case CLOSE_LOOP:
-                Strong_Drag_Smo_Speed_Current_Loop();   /* 滑膜 + 速度电流闭环 */
+            #if (defined(SENSORLESS_SMO))
+                    Strong_Drag_Smo_Speed_Current_Loop();   /* 滑膜 + 速度电流闭环 */
+                #elif
+                
+                #endif
                 break;
             case MOTOR_CALIB:
             default:
@@ -658,7 +679,7 @@ int motorInit(void)
 /*************************************************************************************************************************/
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
-    if (hadc->Instance == ADC2)
+    if (hadc->Instance == motor.adc_base)
     {
         motor.sample.ops->MotorVbus(&motor.sample);
         motor.sample.ops->MotorTemp(&motor.sample);
@@ -667,10 +688,10 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 }
 void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
-    if (hadc->Instance == ADC2)
+    if (hadc->Instance == motor.adc_base)
     {
-        motor.sample.g_adc_buf[0] = HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_1);
-        motor.sample.g_adc_buf[1] = HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_2);
+        motor.sample.g_adc_buf[0] = HAL_ADCEx_InjectedGetValue(motor.hadc, ADC_INJECTED_RANK_1);
+        motor.sample.g_adc_buf[1] = HAL_ADCEx_InjectedGetValue(motor.hadc, ADC_INJECTED_RANK_2);
         motor.sample.ops->MotorCurrent(&motor.sample);
         // 零点校准成功
         if (motor.sample.cali_flag)
@@ -686,8 +707,85 @@ void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef *hadc)
 }
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-    if (htim->Instance == TIM1)
+    if (htim->Instance == motor.tim_base)
     {
-        HAL_ADCEx_InjectedStart_IT(&hadc2);
+        HAL_ADCEx_InjectedStart_IT(motor.hadc);
+    }
+}
+/*************************************************************************************************************************/
+/****************************************************串口调试,软件:VOFA+***************************************************/
+/*************************************************************************************************************************/
+/**
+ * 组一帧调试数据：DBG_CH_NUM 个 float + JustFloat 帧尾（00 00 80 7F）
+ * 通道顺序要与 VOFA+ 里配置的一致，改动这里记得同步改上位机
+ */
+static void DebugStream_Load(void)
+{
+    float ch[DBG_CH_NUM];
+
+    /* 三相电流要在同一控制周期内取值，否则中断插在中间会读到不同拍的混合值 */
+    float iq = motor.foc.Iq_LPF;
+    float spd_out = motor.tra.speedOut;
+
+    /* ---- 通道 0~3：梯形速度曲线专用，统一换算成"机械 RPM"，量级一致可直接对比 ----
+     *   I0 = 目标速度（电位器给出的阶跃）
+     *   I1 = 曲线输出（梯形斜坡）
+     *   I2 = 实际反馈（PLL 观测转速）
+     *   I3 = 运动状态 0=加速 1=匀速 2=减速（左轴会被压扁，可单独放大看）
+     */
+    ch[0] = motor.tra.TargetSpeed;                                    /* 机械 RPM */
+    ch[1] = spd_out / MOTOR_PAIRS;                                    /* 电RPM → 机械RPM */
+    ch[2] = motor.pll.omega_hat_PLF / TWO_PI * 60.0f / MOTOR_PAIRS;   /* rad/s → 机械RPM */
+    ch[3] = (float)motor.tra.motor_state;
+
+    /* ---- 通道 4~14：其他调试量 ---- */
+    ch[4]  = motor.sample.Vbus;
+    ch[5]  = iq;                                                      /* q 轴电流（A）*/
+    ch[6]  = motor.sample.washer_vlaue;                               /* 电位器给定（机械 RPM）*/
+    ch[7]  = (float)motor.StrongDragToObs.GeneralMode;                /* 1=开环 2=闭环 */
+    ch[8]  = (float)motor.StrongDragToObs.CheckCnt;
+    ch[9]  = motor.StrongDragToObs.ThetaErr;
+    ch[10] = motor.pll.omega_hat_PLF;                                 /* 电角速度 rad/s */
+    ch[11] = motor.sample.motor_temp;
+    ch[12] = motor.foc.duty_a;
+    ch[13] = motor.tra.speedChangeIncrement * 1.0e6f;                 /* 位置增量×1e6，看斜坡细分用 */
+    /* I14：中断里逐拍累加的电角度（rad）。
+     * 不能在主循环里用 10ms 的采样点做差分展开：812RPM 时每 10ms 转 5.97 rad > π，
+     * 超过奈奎斯特极限，展开会失败（表现为"角度几乎不变"）。
+     * 中断里每 50us 只转 0.03 rad，可以正确累加，斜率就是电角速度。 */
+    ch[14] = motor.theta_acc;
+
+    memcpy(dbg_frame, ch, sizeof(ch));
+    dbg_frame[DBG_CH_NUM * 4u + 0u] = 0x00u;
+    dbg_frame[DBG_CH_NUM * 4u + 1u] = 0x00u;
+    dbg_frame[DBG_CH_NUM * 4u + 2u] = 0x80u;
+    dbg_frame[DBG_CH_NUM * 4u + 3u] = 0x7Fu;
+
+    dbg_idx  = 0u;
+    dbg_busy = 1u;
+}
+
+/**
+ * 非阻塞调试推流
+ * 1. 每 10ms 组一帧（固定 44 字节），帧长与数值大小无关，转速再高也不会变长
+ * 2. 之后每个主循环只在 TXE 置位时写一个字节，单次开销几十 ns，主循环不再被串口阻塞
+ * 3. 44 字节在 115200 下约 3.8ms 发完，留 6ms 余量
+ */
+void DebugStream_Poll(void)
+{
+    if (dbg_busy == 0u)
+    {
+        if ((HAL_GetTick() - dbg_last_tick) >= 10u)
+        {
+            dbg_last_tick = HAL_GetTick();
+            DebugStream_Load();
+        }
+        return;
+    }
+    if ((USART1->ISR & USART_ISR_TXE_TXFNF) != 0u)
+    {
+        USART1->TDR = dbg_frame[dbg_idx++];
+        if (dbg_idx >= DBG_FRAME_LEN)
+            dbg_busy = 0u;
     }
 }

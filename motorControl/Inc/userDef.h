@@ -2,7 +2,7 @@
  * @Author: Minerva1-2 18993035310@163.com
  * @Date: 2026-09-24 20:42:33
  * @LastEditors: Minerva1-2 18993035310@163.com
- * @LastEditTime: 2026-10-20 13:53:41
+ * @LastEditTime: 2026-10-24 14:34:53
  * @FilePath: \MDK-ARMd:\cubemx\project\keil\FOC\motorControl\userDef.h
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -19,6 +19,13 @@
 #define FOC_SENSOR              1       // 有感算法
 
 #define MOTOR_CONTROLER         FOC_SENSORLESS
+
+#if (MOTOR_CONTROLER == FOC_SENSORLESS)
+    #define SENSORLESS_VF
+    #define SENSORLESS_SMO
+#elif (MOTOR_CONTROLER == FOC_SENSOR)
+
+#endif
 /*************************************************************************************************************************/
 /*********************************************************基本参数*********************************************************/
 /*************************************************************************************************************************/
@@ -121,5 +128,11 @@
 #ifndef MOTOR_CONTROLER                     // 没有定义电机控制算法
     #error "MOTOR_CONTROLER no defined..."
 #endif // #ifndef FOC_SENEORLESS
-
+/*************************************************************************************************************************/
+/*******************************************************串口数组长度*******************************************************/
+/*************************************************************************************************************************/
+#define DBG_CH_NUM      15u
+#define DBG_FRAME_LEN   (DBG_CH_NUM * 4u + 4u)
+#define DBG_PERIOD_MS       10u     /* 推流周期 */
+#define DBG_TX_TIMEOUT_MS   20u     /* 一帧 64B@115200 约 5.6ms，超 20ms 视为异常 */
 #endif // #ifndef __USERDEF_H

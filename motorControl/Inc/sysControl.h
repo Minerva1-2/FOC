@@ -66,12 +66,17 @@ typedef struct
     SAMPLE_t    sample;
     StrongDragToObs_t StrongDragToObs;
     float theta_acc;        /* 中断里逐拍累加的电角度（rad），供调试观测，不受推流速率限制 */
+	
+	ADC_HandleTypeDef *hadc;
+	ADC_TypeDef *adc_base;
+	TIM_TypeDef *tim_base;
 }Motor_t;
 
 // /* 全局唯一电机实例：所有模块的数据都在 sysControl.c 中统一初始化 */
 extern Motor_t motor;
 
 int motorInit(void);
+void DebugStream_Poll(void);
 
 static inline float Sat(float value, float min, float max){
     if(value >= max){
